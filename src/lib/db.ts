@@ -182,6 +182,34 @@ export const db = {
   },
 
   /**
+   * Met à jour un sticker par son slug (pratique pour l'édition par scan QR
+   * où on récupère un slug depuis l'URL scannée, pas un id interne).
+   * Retourne le sticker mis à jour ou null si introuvable.
+   */
+  async updateStickerBySlug(
+    slug: string,
+    updates: StickerUpdate
+  ): Promise<Sticker | null> {
+    const existing = await store.get<Omit<Sticker, 'scanCount'>>(
+      `sticker:${slug}`
+    )
+    if (!existing) return null
+
+    const updated: Omit<Sticker, 'scanCount'> = {
+      ...existing,
+      ...(updates.label !== undefined ? { label: updates.label } : {}),
+      ...(updates.targetUrl !== undefined
+        ? { targetUrl: updates.targetUrl }
+        : {}),
+      ...(updates.active !== undefined ? { active: updates.active } : {}),
+      updatedAt: new Date().toISOString(),
+    }
+
+    await store.set(`sticker:${slug}`, updated)
+    return getStickerWithScans(slug)
+  },
+
+  /**
    * Supprime un sticker par son id. Retourne true si supprimé.
    */
   async deleteSticker(id: string): Promise<boolean> {
