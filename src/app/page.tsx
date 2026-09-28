@@ -492,6 +492,7 @@ export default function Home() {
         brandName: BRAND_NAME,
         brandLogoUrl: BRAND_LOGO_URL,
         brandPhone: BRAND_PHONE,
+        baseUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
       })
 
       // Convertir SVG → Image → Canvas → PNG
@@ -1319,6 +1320,7 @@ function StickerPreview({
         brandName: BRAND_NAME,
         brandLogoUrl: BRAND_LOGO_URL,
         brandPhone: BRAND_PHONE,
+        baseUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
       })
       setSvgHtml(stickerSvg)
     })

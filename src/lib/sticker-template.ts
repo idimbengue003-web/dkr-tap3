@@ -71,6 +71,10 @@ export function detectNetwork(targetUrl: string | null): Network {
  * @param opts.brandName Nom de marque (ex: "DKR TAP")
  * @param opts.brandLogoUrl URL du logo de marque
  * @param opts.brandPhone Téléphone affiché en bas (ex: "78 927 12 96")
+ * @param opts.baseUrl Origin du site (ex: "https://dkr-tap3-exzn.vercel.app")
+ *   Utilisé pour convertir les chemins relatifs ("/scanbridge-logo.svg") en URLs
+ *   absolues. INDISPENSABLE quand le SVG est sérialisé en Blob URL pour générer
+ *   un PNG — sinon les <image href="/..."> ne se résolvent pas.
  */
 export function renderStickerSvg(opts: {
   qrSvgString: string
@@ -79,10 +83,30 @@ export function renderStickerSvg(opts: {
   brandName: string
   brandLogoUrl: string
   brandPhone: string
+  baseUrl?: string // ex: "https://dkr-tap3-exzn.vercel.app"
 }): string {
   const { qrSvgString, network, publicUrl, brandName, brandLogoUrl } = opts
   const SIZE = 1181 // 10 cm @ 300 DPI
   const net = network ? NETWORKS[network] : null
+
+  // Convertit un chemin relatif ("/foo.svg") en URL absolue si baseUrl est fourni.
+  // Les URLs déjà absolues (http://, https://, data:) sont laissées intactes.
+  const toAbsoluteUrl = (path: string): string => {
+    if (!opts.baseUrl) return path
+    if (
+      path.startsWith('http://') ||
+      path.startsWith('https://') ||
+      path.startsWith('data:') ||
+      path.startsWith('blob:')
+    ) {
+      return path
+    }
+    try {
+      return new URL(path, opts.baseUrl).toString()
+    } catch {
+      return path
+    }
+  }
 
   // Hauteurs des 3 zones
   const TOP_H = Math.round(SIZE * 0.30) // 354
@@ -105,7 +129,7 @@ export function renderStickerSvg(opts: {
   const topSection = net
     ? `
     <!-- Logo réseau -->
-    <image href="${escapeXml(net.logoPath)}" x="${logoX}" y="${logoY}" width="${LOGO_SIZE}" height="${LOGO_SIZE}"/>
+    <image href="${escapeXml(toAbsoluteUrl(net.logoPath))}" x="${logoX}" y="${logoY}" width="${LOGO_SIZE}" height="${LOGO_SIZE}"/>
     <!-- Texte d'action -->
     <text x="${SIZE / 2}" y="${actionY}" text-anchor="middle"
           font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
@@ -171,7 +195,7 @@ export function renderStickerSvg(opts: {
 
   <!-- BOTTOM : bande sombre DKR TAP + téléphone -->
   <rect x="0" y="${bottomY}" width="${SIZE}" height="${BOTTOM_H}" fill="#0a0a0a"/>
-  <image href="${escapeXml(brandLogoUrl)}" x="${brandLogoX}" y="${brandLogoY}" width="${brandLogoSize}" height="${brandLogoSize}"/>
+  <image href="${escapeXml(toAbsoluteUrl(brandLogoUrl))}" x="${brandLogoX}" y="${brandLogoY}" width="${brandLogoSize}" height="${brandLogoSize}"/>
   <text x="${textX}" y="${taglineY}"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
         font-size="22" fill="#a1a1aa">${taglineEscaped}</text>
