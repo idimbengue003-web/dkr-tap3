@@ -14,23 +14,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "QR Passerelle - Gestion de stickers QR",
+  title: "ScanBridge - Gestion de stickers QR",
   description: "Passerelle de redirection QR code avec interface d'administration. Modifiez les liens de vos stickers sans les réimprimer.",
-  keywords: ["QR code", "passerelle", "redirection", "stickers", "admin"],
-  authors: [{ name: "QR Passerelle" }],
+  keywords: ["QR code", "passerelle", "redirection", "stickers", "admin", "ScanBridge"],
+  authors: [{ name: "ScanBridge" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/scanbridge-logo.svg",
   },
   openGraph: {
-    title: "QR Passerelle",
+    title: "ScanBridge",
     description: "Gérez les redirections de vos stickers QR code",
     url: "https://chat.z.ai",
-    siteName: "QR Passerelle",
+    siteName: "ScanBridge",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "QR Passerelle",
+    title: "ScanBridge",
     description: "Gérez les redirections de vos stickers QR code",
   },
 };

@@ -38,14 +38,12 @@ import {
   QrCode,
   Copy,
   ExternalLink,
-  Link as LinkIcon,
   Loader2,
   Eye,
   EyeOff,
   MousePointerClick,
   Globe,
   StickyNote,
-  Lock,
   LogOut,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
@@ -74,6 +72,11 @@ const EMPTY_FORM: StickerForm = {
   slug: '',
   active: true,
 }
+
+// Branding — lu depuis les variables d'env NEXT_PUBLIC_*
+// (évalué au build time côté client, mais reste configurable via .env)
+const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'ScanBridge'
+const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/scanbridge-logo.svg'
 
 export default function Home() {
   const router = useRouter()
@@ -501,12 +504,26 @@ export default function Home() {
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 p-6">
         <Card className="max-w-md w-full bg-white border-zinc-200">
           <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto w-12 h-12 rounded-xl bg-zinc-900 flex items-center justify-center text-white">
-              <Lock size={22} />
+            {/* Logo de marque en grand, sur fond sombre */}
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center p-3 shadow-lg shadow-zinc-900/20">
+              <img
+                src={BRAND_LOGO_URL}
+                alt={`Logo ${BRAND_NAME}`}
+                width={48}
+                height={48}
+                className="w-full h-full"
+              />
             </div>
-            <CardTitle className="text-zinc-900">Accès réservé</CardTitle>
+            <div>
+              <CardTitle className="text-zinc-900 text-2xl tracking-tight">
+                {BRAND_NAME}
+              </CardTitle>
+              <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider mt-1">
+                Accès administrateur
+              </p>
+            </div>
             <CardDescription>
-              Saisissez le mot de passe administrateur pour gérer les stickers.
+              Saisissez le mot de passe pour gérer les stickers.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -552,11 +569,20 @@ export default function Home() {
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-zinc-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-white">
-              <LinkIcon size={20} />
+            {/* Logo de marque dans un conteneur sombre pour le contraste sur fond blanc */}
+            <div className="w-11 h-11 rounded-xl bg-zinc-900 flex items-center justify-center p-1.5 shrink-0">
+              <img
+                src={BRAND_LOGO_URL}
+                alt={`Logo ${BRAND_NAME}`}
+                width={32}
+                height={32}
+                className="w-full h-full"
+              />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-zinc-900">QR Passerelle</h1>
+              <h1 className="text-xl font-bold text-zinc-900 tracking-tight">
+                {BRAND_NAME}
+              </h1>
               <p className="text-xs text-zinc-500">
                 Gérez les redirections de vos stickers QR
               </p>
@@ -686,9 +712,19 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="mt-auto bg-white border-t border-zinc-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-xs text-zinc-400">
-          QR Passerelle — chaque sticker est accessible via{' '}
-          <code className="text-zinc-600">/api/r/&lt;slug&gt;</code>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-center gap-2 text-xs text-zinc-400">
+          <img
+            src={BRAND_LOGO_URL}
+            alt=""
+            width={14}
+            height={14}
+            className="opacity-60"
+            aria-hidden="true"
+          />
+          <span>
+            {BRAND_NAME} — chaque sticker est accessible via{' '}
+            <code className="text-zinc-600">/api/r/&lt;slug&gt;</code>
+          </span>
         </div>
       </footer>
 

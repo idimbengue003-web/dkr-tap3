@@ -2,6 +2,9 @@ import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
+const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'ScanBridge'
+const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/scanbridge-logo.svg'
+
 export default function NotConfiguredPage({
   searchParams,
 }: {
@@ -16,6 +19,19 @@ function render(slug?: string) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 p-6">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center border border-zinc-200">
+        {/* Logo de marque */}
+        <div className="mx-auto w-14 h-14 rounded-2xl bg-zinc-900 flex items-center justify-center p-2.5 mb-4">
+          <img
+            src={BRAND_LOGO_URL}
+            alt={`Logo ${BRAND_NAME}`}
+            width={40}
+            height={40}
+            className="w-full h-full"
+          />
+        </div>
+        <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+          {BRAND_NAME}
+        </div>
         <div className="mx-auto w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mb-5">
           <svg
             xmlns="http://www.w3.org/2000/svg"

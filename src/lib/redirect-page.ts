@@ -29,8 +29,33 @@ function escapeJs(str: string): string {
   return JSON.stringify(str)
 }
 
-function getCompanyName(): string {
-  return process.env.COMPANY_NAME?.trim() || 'QR Passerelle'
+function getBrandName(): string {
+  return (
+    process.env.NEXT_PUBLIC_BRAND_NAME?.trim() ||
+    process.env.COMPANY_NAME?.trim() || // rétro-compat
+    'ScanBridge'
+  )
+}
+
+function getBrandLogoUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_BRAND_LOGO_URL?.trim() ||
+    '/scanbridge-logo.svg'
+  )
+}
+
+/**
+ * Construit le bloc <img> du logo avec les bons attributs alt/width/height.
+ * Échappe l'URL pour prévenir les injections XSS via la variable d'env.
+ */
+function getLogoImgHtml(opts: {
+  width: number
+  height: number
+  extraClass?: string
+}): string {
+  const url = escapeHtml(getBrandLogoUrl())
+  const brand = escapeHtml(getBrandName())
+  return `<img src="${url}" alt="Logo ${brand}" width="${opts.width}" height="${opts.height}" class="${opts.extraClass ?? ''}" />`
 }
 
 /**
@@ -46,10 +71,23 @@ export function renderWaitingPage(opts: {
   configured: boolean
 }): string {
   const { targetUrl, slug, configured } = opts
-  const companyName = escapeHtml(getCompanyName())
+  const brandName = escapeHtml(getBrandName())
   const slugHtml = escapeHtml(slug)
   const targetUrlHtml = targetUrl ? escapeHtml(targetUrl) : ''
   const targetUrlJs = targetUrl ? escapeJs(targetUrl) : ''
+
+  // Logo de marque en haut de page (taille 56x56, centré)
+  const brandLogoTop = getLogoImgHtml({
+    width: 56,
+    height: 56,
+    extraClass: 'brand-logo',
+  })
+  // Logo miniature dans le footer (16x16)
+  const brandLogoFooter = getLogoImgHtml({
+    width: 16,
+    height: 16,
+    extraClass: 'footer-logo',
+  })
 
   // Pour le cas configuré : meta refresh + JS fallback après 600ms
   const metaRefresh = configured && targetUrl
@@ -95,7 +133,7 @@ export function renderWaitingPage(opts: {
     ? 'Connexion sécurisée'
     : 'Sticker en attente de configuration'
   const subtitle = isConfigured
-    ? `via <strong>${companyName}</strong>`
+    ? `via <strong>${brandName}</strong>`
     : 'Ce sticker n\'est pas encore actif'
   const bodyMessage = isConfigured
     ? 'Redirection vers la page du commerçant en cours…'
@@ -126,7 +164,7 @@ export function renderWaitingPage(opts: {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   ${metaRefresh}
-  <title>${title} — ${companyName}</title>
+  <title>${title} — ${brandName}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; }
@@ -267,6 +305,32 @@ export function renderWaitingPage(opts: {
       color: #52525b;
     }
     .footer strong { color: #71717a; font-weight: 500; }
+    .footer-logo {
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 0.35rem;
+      opacity: 0.7;
+    }
+
+    /* Branding en haut de page */
+    .brand-top {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 1.75rem;
+    }
+    .brand-logo {
+      display: block;
+      filter: drop-shadow(0 4px 16px rgba(16, 185, 129, 0.15));
+    }
+    .brand-name {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #71717a;
+    }
 
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes fadein {
@@ -282,6 +346,11 @@ export function renderWaitingPage(opts: {
 </head>
 <body>
   <main class="container" role="main">
+    <div class="brand-top">
+      ${brandLogoTop}
+      <div class="brand-name">${brandName}</div>
+    </div>
+
     <div class="badge" role="status" aria-live="polite">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         ${iconPath}
@@ -305,7 +374,7 @@ export function renderWaitingPage(opts: {
     ${targetSection}
 
     <div class="footer">
-      Propulsé par <strong>${companyName}</strong>
+      Propulsé par ${brandLogoFooter}<strong>${brandName}</strong>
     </div>
   </main>
 
