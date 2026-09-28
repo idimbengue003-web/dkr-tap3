@@ -44,6 +44,10 @@ function getBrandLogoUrl(): string {
   )
 }
 
+function getBrandPhone(): string {
+  return process.env.NEXT_PUBLIC_BRAND_PHONE?.trim() || ''
+}
+
 /**
  * Construit le bloc <img> du logo avec les bons attributs alt/width/height.
  * Échappe l'URL pour prévenir les injections XSS via la variable d'env.
@@ -88,6 +92,11 @@ export function renderWaitingPage(opts: {
     height: 16,
     extraClass: 'footer-logo',
   })
+  // Téléphone de marque (optionnel — affiché dans le footer)
+  const brandPhone = escapeHtml(getBrandPhone())
+  const footerLine = brandPhone
+    ? `Propulsé par ${brandLogoFooter}<strong>${brandName}</strong> — Pour commander le vôtre : <strong>${brandPhone}</strong>`
+    : `Propulsé par ${brandLogoFooter}<strong>${brandName}</strong>`
 
   // Pour le cas configuré : meta refresh + JS fallback après 600ms
   const metaRefresh = configured && targetUrl
@@ -374,7 +383,7 @@ export function renderWaitingPage(opts: {
     ${targetSection}
 
     <div class="footer">
-      Propulsé par ${brandLogoFooter}<strong>${brandName}</strong>
+      ${footerLine}
     </div>
   </main>
 

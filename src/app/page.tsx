@@ -47,6 +47,12 @@ import {
   LogOut,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import {
+  renderStickerSvg,
+  detectNetwork,
+  NETWORKS,
+  type Network,
+} from '@/lib/sticker-template'
 
 type Sticker = {
   id: string
@@ -77,6 +83,7 @@ const EMPTY_FORM: StickerForm = {
 // (évalué au build time côté client, mais reste configurable via .env)
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'ScanBridge'
 const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/scanbridge-logo.svg'
+const BRAND_PHONE = process.env.NEXT_PUBLIC_BRAND_PHONE || ''
 
 export default function Home() {
   const router = useRouter()
@@ -380,48 +387,54 @@ export default function Home() {
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
-  // Télécharger le QR code en PNG haute résolution (1024×1024) — 100% local.
-  // Récupère le SVG rendu par <QRCodeSVG> dans le DOM, le dessine à 1024×1024
-  // dans un canvas avec une marge blanche, puis exporte en PNG.
+  // Télécharger le sticker complet (10×10 cm @ 300 DPI = 1181×1181 px).
+  // Récupère le SVG du QR depuis le DOM, l'injecte dans le template du sticker,
+  // convertit le SVG final en PNG via canvas (vectoriel → pas de pixelisation).
   // Aucune dépendance à une API externe (compatible Railway, Vercel, Docker, etc.).
-  const downloadQrPng = async (slug: string) => {
+  const downloadStickerPng = async (sticker: Sticker) => {
     try {
       const svgEl = qrSvgRef.current?.querySelector('svg')
       if (!svgEl) {
         throw new Error('QR code non trouvé dans le DOM')
       }
 
-      // Sérialiser le SVG en string + s'assurer qu'il a bien les xmlns
-      const svgString = new XMLSerializer().serializeToString(svgEl)
-      const svgWithXmlns = svgString.includes('xmlns=')
-        ? svgString
-        : svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')
+      // Sérialiser le SVG du QR
+      const qrSvgString = new XMLSerializer().serializeToString(svgEl)
 
-      const SIZE = 1024
-      const MARGIN = 32 // marge blanche autour du code (pour la lisibilité de scan)
-      const codeSize = SIZE - MARGIN * 2
+      // Détecter le réseau depuis l'URL cible
+      const network: Network = detectNetwork(sticker.targetUrl)
 
-      const svgBlob = new Blob([svgWithXmlns], {
+      // Générer le SVG complet du sticker
+      const stickerSvg = renderStickerSvg({
+        qrSvgString,
+        network,
+        publicUrl: getPublicUrl(sticker.slug),
+        brandName: BRAND_NAME,
+        brandLogoUrl: BRAND_LOGO_URL,
+        brandPhone: BRAND_PHONE,
+      })
+
+      // Convertir SVG → Image → Canvas → PNG
+      const stickerBlob = new Blob([stickerSvg], {
         type: 'image/svg+xml;charset=utf-8',
       })
-      const svgUrl = URL.createObjectURL(svgBlob)
+      const stickerUrl = URL.createObjectURL(stickerBlob)
+
+      const STICKER_SIZE = 1181 // 10 cm @ 300 DPI
 
       await new Promise<void>((resolve, reject) => {
         const img = new Image()
         img.onload = () => {
           const canvas = document.createElement('canvas')
-          canvas.width = SIZE
-          canvas.height = SIZE
+          canvas.width = STICKER_SIZE
+          canvas.height = STICKER_SIZE
           const ctx = canvas.getContext('2d')
           if (!ctx) {
             reject(new Error('Canvas non supporté'))
             return
           }
-          // Fond blanc
-          ctx.fillStyle = '#ffffff'
-          ctx.fillRect(0, 0, SIZE, SIZE)
-          // Dessiner le QR centré avec marge
-          ctx.drawImage(img, MARGIN, MARGIN, codeSize, codeSize)
+          // Dessiner le sticker à pleine résolution
+          ctx.drawImage(img, 0, 0, STICKER_SIZE, STICKER_SIZE)
 
           canvas.toBlob((blob) => {
             if (!blob) {
@@ -431,25 +444,26 @@ export default function Home() {
             const dlUrl = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = dlUrl
-            a.download = `qr-${slug}.png`
+            a.download = `sticker-${sticker.slug}.png`
             document.body.appendChild(a)
             a.click()
             document.body.removeChild(a)
             URL.revokeObjectURL(dlUrl)
-            URL.revokeObjectURL(svgUrl)
+            URL.revokeObjectURL(stickerUrl)
             resolve()
           }, 'image/png')
         }
         img.onerror = () => {
-          URL.revokeObjectURL(svgUrl)
+          URL.revokeObjectURL(stickerUrl)
           reject(new Error('Échec de rendu du SVG'))
         }
-        // Important : charger en tant que data: URL n'est pas nécessaire,
-        // un Blob URL fonctionne et évite les soucis de CORS.
-        img.src = svgUrl
+        img.src = stickerUrl
       })
 
-      toast({ title: 'QR code téléchargé', description: `qr-${slug}.png` })
+      toast({
+        title: 'Sticker téléchargé',
+        description: `sticker-${sticker.slug}.png (10×10 cm, 300 DPI)`,
+      })
     } catch (e) {
       toast({
         variant: 'destructive',
@@ -831,19 +845,24 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal QR code */}
+      {/* Modal QR code → Sticker complet */}
       <Dialog open={qrOpen} onOpenChange={setQrOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>QR code du sticker</DialogTitle>
+            <DialogTitle>Aperçu du sticker</DialogTitle>
             <DialogDescription>
-              Imprimez ce QR code et collez-le sur votre sticker physique.
-              Scannez-le pour être redirigé vers l&apos;URL configurée.
+              Format 10×10 cm prêt à imprimer. Le PNG exporté est en 300 DPI (1181×1181 px).
             </DialogDescription>
           </DialogHeader>
           {qrSticker && (
-            <div className="flex flex-col items-center py-4">
-              <div ref={qrSvgRef} className="bg-white p-4 rounded-xl border border-zinc-200">
+            <div className="flex flex-col items-center py-2">
+              {/* QR code caché : sert de source pour la génération du sticker PNG.
+                  Ne PAS supprimer, le ref est lu par downloadStickerPng(). */}
+              <div
+                ref={qrSvgRef}
+                aria-hidden="true"
+                style={{ position: 'absolute', left: -9999, top: -9999 }}
+              >
                 <QRCodeSVG
                   value={getPublicUrl(qrSticker.slug)}
                   size={280}
@@ -851,15 +870,48 @@ export default function Home() {
                   marginSize={2}
                   bgColor="#ffffff"
                   fgColor="#000000"
-                  aria-label={`QR code ${qrSticker.slug}`}
                 />
               </div>
-              <div className="mt-4 text-center w-full">
-                <p className="text-xs text-zinc-500 mb-1">URL publique</p>
+
+              {/* Preview du sticker complet (rendu via renderStickerSvg) */}
+              <StickerPreview
+                sticker={qrSticker}
+                publicUrl={getPublicUrl(qrSticker.slug)}
+                qrRef={qrSvgRef}
+              />
+
+              {/* Badge réseau détecté */}
+              {(() => {
+                const net = detectNetwork(qrSticker.targetUrl)
+                return (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500">
+                    <span>Réseau détecté :</span>
+                    {net ? (
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                        style={{
+                          backgroundColor: `${NETWORKS[net].accent}15`,
+                          color: NETWORKS[net].accent,
+                        }}
+                      >
+                        {net}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-400">Aucun (générique)</span>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* URL publique (info) */}
+              <div className="mt-3 text-center w-full">
+                <p className="text-xs text-zinc-500 mb-1">URL publique scannable</p>
                 <code className="block text-xs font-mono text-zinc-700 break-all bg-zinc-50 px-3 py-2 rounded border border-zinc-200">
                   {getPublicUrl(qrSticker.slug)}
                 </code>
               </div>
+
+              {/* Actions */}
               <div className="mt-4 flex gap-2 w-full">
                 <Button
                   variant="outline"
@@ -873,10 +925,10 @@ export default function Home() {
                 <Button
                   size="sm"
                   className="flex-1"
-                  onClick={() => downloadQrPng(qrSticker.slug)}
+                  onClick={() => downloadStickerPng(qrSticker)}
                 >
                   <Download size={14} className="mr-1.5" />
-                  Télécharger PNG
+                  Télécharger le sticker
                 </Button>
               </div>
             </div>
@@ -915,6 +967,65 @@ export default function Home() {
 }
 
 /* ---------------- Sous-composants ---------------- */
+
+/**
+ * Preview du sticker complet (rendu via renderStickerSvg injecté comme innerHTML).
+ * Le SVG est mis à l'échelle via CSS (max-w-full) pour s'adapter au conteneur.
+ *
+ * @param sticker Le sticker (pour détecter le réseau)
+ * @param publicUrl URL publique complète (à afficher sous le QR)
+ * @param qrRef Ref vers le QR code caché dans le DOM (pour récupérer le SVG)
+ */
+function StickerPreview({
+  sticker,
+  publicUrl,
+  qrRef,
+}: {
+  sticker: Sticker
+  publicUrl: string
+  qrRef: React.RefObject<HTMLDivElement | null>
+}) {
+  const [svgHtml, setSvgHtml] = useState<string>('')
+
+  useEffect(() => {
+    // Attendre que le QR code caché soit dans le DOM (1 rafFrame suffit en général)
+    const raf = requestAnimationFrame(() => {
+      const svgEl = qrRef.current?.querySelector('svg')
+      if (!svgEl) {
+        setSvgHtml('')
+        return
+      }
+      const qrSvgString = new XMLSerializer().serializeToString(svgEl)
+      const network = detectNetwork(sticker.targetUrl)
+      const stickerSvg = renderStickerSvg({
+        qrSvgString,
+        network,
+        publicUrl,
+        brandName: BRAND_NAME,
+        brandLogoUrl: BRAND_LOGO_URL,
+        brandPhone: BRAND_PHONE,
+      })
+      setSvgHtml(stickerSvg)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [sticker, publicUrl, qrRef])
+
+  if (!svgHtml) {
+    return (
+      <div className="w-full aspect-square max-w-[280px] mx-auto bg-zinc-100 rounded-xl animate-pulse" />
+    )
+  }
+
+  // Le SVG 1181×1181 est mis à l'échelle via CSS max-w-full + aspect-square
+  // + height: auto pour préserver les ratios
+  return (
+    <div
+      className="w-full max-w-[320px] mx-auto bg-white rounded-xl overflow-hidden border border-zinc-200 shadow-sm"
+      dangerouslySetInnerHTML={{ __html: svgHtml }}
+      style={{ aspectRatio: '1 / 1' }}
+    />
+  )
+}
 
 function StatCard({
   label,
