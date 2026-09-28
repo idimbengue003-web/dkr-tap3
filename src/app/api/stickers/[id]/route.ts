@@ -16,7 +16,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { label, targetUrl, active } = body
+    const { label, targetUrl, active, customActionText, customNetwork } = body
 
     // Vérifier existence
     const existing = await db.getStickerById(id)
@@ -32,6 +32,8 @@ export async function PUT(
       label?: string | null
       targetUrl?: string | null
       active?: boolean
+      customActionText?: string | null
+      customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
     } = {}
 
     if (label !== undefined) {
@@ -56,6 +58,22 @@ export async function PUT(
 
     if (active !== undefined) {
       data.active = Boolean(active)
+    }
+
+    if (customActionText !== undefined) {
+      data.customActionText =
+        typeof customActionText === 'string' && customActionText.trim()
+          ? customActionText.trim()
+          : null
+    }
+
+    if (customNetwork !== undefined) {
+      const validNetworks = ['google', 'tiktok', 'instagram', 'none']
+      data.customNetwork =
+        typeof customNetwork === 'string' &&
+        validNetworks.includes(customNetwork)
+          ? (customNetwork as 'google' | 'tiktok' | 'instagram' | 'none')
+          : null
     }
 
     const updated = await db.updateSticker(id, data)

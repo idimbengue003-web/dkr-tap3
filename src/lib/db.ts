@@ -33,6 +33,12 @@ export type Sticker = {
   active: boolean
   createdAt: string // ISO string (sérialisable JSON)
   updatedAt: string
+  /** Texte d'action personnalisé affiché en haut du sticker.
+   *  Si null → utilise le texte par défaut du réseau détecté (ou "Scannez ce QR code"). */
+  customActionText?: string | null
+  /** Réseau forcé manuellement ('google' | 'tiktok' | 'instagram' | 'none').
+   *  Si null ou absent → auto-détecté depuis l'URL cible. */
+  customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
 }
 
 export type StickerInput = {
@@ -40,10 +46,12 @@ export type StickerInput = {
   label: string | null
   targetUrl: string | null
   active: boolean
+  customActionText?: string | null
+  customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
 }
 
 export type StickerUpdate = Partial<
-  Pick<Sticker, 'label' | 'targetUrl' | 'active'>
+  Pick<Sticker, 'label' | 'targetUrl' | 'active' | 'customActionText' | 'customNetwork'>
 >
 
 /* ---------------- Helpers ---------------- */
@@ -86,6 +94,8 @@ export const db = {
       active: input.active,
       createdAt: now,
       updatedAt: now,
+      customActionText: input.customActionText ?? null,
+      customNetwork: input.customNetwork ?? null,
     }
 
     // Pipeline-like : set sticker + set id→slug mapping + zadd index
@@ -174,6 +184,12 @@ export const db = {
         ? { targetUrl: updates.targetUrl }
         : {}),
       ...(updates.active !== undefined ? { active: updates.active } : {}),
+      ...(updates.customActionText !== undefined
+        ? { customActionText: updates.customActionText }
+        : {}),
+      ...(updates.customNetwork !== undefined
+        ? { customNetwork: updates.customNetwork }
+        : {}),
       updatedAt: new Date().toISOString(),
     }
 
@@ -202,6 +218,12 @@ export const db = {
         ? { targetUrl: updates.targetUrl }
         : {}),
       ...(updates.active !== undefined ? { active: updates.active } : {}),
+      ...(updates.customActionText !== undefined
+        ? { customActionText: updates.customActionText }
+        : {}),
+      ...(updates.customNetwork !== undefined
+        ? { customNetwork: updates.customNetwork }
+        : {}),
       updatedAt: new Date().toISOString(),
     }
 

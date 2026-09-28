@@ -52,6 +52,7 @@ import { ScannerModal } from '@/components/scanner/scanner-modal'
 import {
   renderStickerSvg,
   detectNetwork,
+  getEffectiveNetwork,
   NETWORKS,
   type Network,
 } from '@/lib/sticker-template'
@@ -65,6 +66,8 @@ type Sticker = {
   active: boolean
   createdAt: string
   updatedAt: string
+  customActionText?: string | null
+  customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
 }
 
 type StickerForm = {
@@ -72,6 +75,8 @@ type StickerForm = {
   targetUrl: string
   slug: string
   active: boolean
+  customActionText: string
+  customNetwork: 'auto' | 'google' | 'tiktok' | 'instagram' | 'none'
 }
 
 const EMPTY_FORM: StickerForm = {
@@ -79,6 +84,8 @@ const EMPTY_FORM: StickerForm = {
   targetUrl: '',
   slug: '',
   active: true,
+  customActionText: '',
+  customNetwork: 'auto',
 }
 
 // Payload retourné par GET /api/stats
@@ -328,6 +335,9 @@ export default function Home() {
         targetUrl: sticker.targetUrl ?? '',
         slug: sticker.slug,
         active: sticker.active,
+        customActionText: sticker.customActionText ?? '',
+        customNetwork:
+          (sticker.customNetwork as StickerForm['customNetwork']) ?? 'auto',
       })
     } else {
       setEditingId(null)
@@ -365,6 +375,8 @@ export default function Home() {
         targetUrl: form.targetUrl.trim() || undefined,
         slug: form.slug.trim() || undefined,
         active: form.active,
+        customActionText: form.customActionText.trim() || null,
+        customNetwork: form.customNetwork === 'auto' ? null : form.customNetwork,
       }
 
       const url = editingId
@@ -481,8 +493,11 @@ export default function Home() {
       // Sérialiser le SVG du QR
       const qrSvgString = new XMLSerializer().serializeToString(svgEl)
 
-      // Détecter le réseau depuis l'URL cible
-      const network: Network = detectNetwork(sticker.targetUrl)
+      // Réseau effectif (custom si fourni, sinon auto-détecté)
+      const network: Network = getEffectiveNetwork(
+        sticker.targetUrl,
+        sticker.customNetwork ?? null
+      )
 
       // Générer le SVG complet du sticker
       const stickerSvg = renderStickerSvg({
@@ -493,6 +508,7 @@ export default function Home() {
         brandLogoUrl: BRAND_LOGO_URL,
         brandPhone: BRAND_PHONE,
         baseUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+        customActionText: sticker.customActionText ?? null,
       })
 
       // Convertir SVG → Image → Canvas → PNG
@@ -907,6 +923,60 @@ export default function Home() {
               )}
             </div>
 
+            {/* Réseau (auto-détecté ou forcé) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="customNetwork">Réseau affiché sur le sticker</Label>
+              <select
+                id="customNetwork"
+                value={form.customNetwork}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    customNetwork: e.target
+                      .value as StickerForm['customNetwork'],
+                  }))
+                }
+                className="w-full px-3 py-2 rounded-md border border-zinc-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
+              >
+                <option value="auto">
+                  Auto-détecté depuis l&apos;URL{form.targetUrl ? ` (${detectNetwork(form.targetUrl) || 'aucun réseau détecté'})` : ''}
+                </option>
+                <option value="google">Google (logo G + texte par défaut)</option>
+                <option value="tiktok">TikTok (logo note + texte par défaut)</option>
+                <option value="instagram">Instagram (logo caméra + texte par défaut)</option>
+                <option value="none">Aucun logo (sticker générique)</option>
+              </select>
+              <p className="text-xs text-zinc-500">
+                Force le logo affiché en haut du sticker. « Auto » détecte depuis l&apos;URL cible.
+              </p>
+            </div>
+
+            {/* Texte d'action personnalisé */}
+            <div className="space-y-1.5">
+              <Label htmlFor="customActionText">
+                Texte d&apos;action personnalisé <span className="text-zinc-400 font-normal">(optionnel)</span>
+              </Label>
+              <Input
+                id="customActionText"
+                placeholder={(() => {
+                  const net = form.customNetwork === 'auto'
+                    ? detectNetwork(form.targetUrl)
+                    : form.customNetwork === 'none'
+                      ? null
+                      : form.customNetwork
+                  return net ? NETWORKS[net].action : 'Scannez ce QR code'
+                })()}
+                value={form.customActionText}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, customActionText: e.target.value }))
+                }
+              />
+              <p className="text-xs text-zinc-500">
+                Laisse vide pour utiliser le texte par défaut du réseau. Sinon, tape ton propre message
+                (ex : « Notez-nous 5 étoiles sur Google ! ⭐ », « Suis-nous sur TikTok 🎵 »).
+              </p>
+            </div>
+
             <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3">
               <div>
                 <Label htmlFor="active" className="text-sm font-medium">
@@ -1312,7 +1382,10 @@ function StickerPreview({
         return
       }
       const qrSvgString = new XMLSerializer().serializeToString(svgEl)
-      const network = detectNetwork(sticker.targetUrl)
+      const network = getEffectiveNetwork(
+        sticker.targetUrl,
+        sticker.customNetwork ?? null
+      )
       const stickerSvg = renderStickerSvg({
         qrSvgString,
         network,
@@ -1321,6 +1394,7 @@ function StickerPreview({
         brandLogoUrl: BRAND_LOGO_URL,
         brandPhone: BRAND_PHONE,
         baseUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+        customActionText: sticker.customActionText ?? null,
       })
       setSvgHtml(stickerSvg)
     })

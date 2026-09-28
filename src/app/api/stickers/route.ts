@@ -12,7 +12,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { label, targetUrl, slug: customSlug, active = true } = body
+    const {
+      label,
+      targetUrl,
+      slug: customSlug,
+      active = true,
+      customActionText,
+      customNetwork,
+    } = body
 
     // Générer un slug unique court si non fourni (8 caractères base36)
     let slug =
@@ -46,11 +53,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Valider customNetwork (doit être une des valeurs acceptées)
+    const validNetworks = ['google', 'tiktok', 'instagram', 'none']
+    const finalCustomNetwork =
+      typeof customNetwork === 'string' && validNetworks.includes(customNetwork)
+        ? (customNetwork as 'google' | 'tiktok' | 'instagram' | 'none')
+        : null
+
     const sticker = await db.createSticker({
       slug,
       label: label?.trim() || null,
       targetUrl: finalTargetUrl,
       active: Boolean(active),
+      customActionText:
+        typeof customActionText === 'string' && customActionText.trim()
+          ? customActionText.trim()
+          : null,
+      customNetwork: finalCustomNetwork,
     })
 
     return NextResponse.json(sticker, { status: 201 })

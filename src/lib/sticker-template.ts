@@ -63,6 +63,31 @@ export function detectNetwork(targetUrl: string | null): Network {
 }
 
 /**
+ * Calcule le réseau EFFECTIF à utiliser pour le rendu du sticker.
+ *
+ * Si le sticker a un `customNetwork` défini ('google' | 'tiktok' | 'instagram' | 'none'),
+ * on l'utilise. Sinon, on auto-détecte depuis l'URL cible.
+ *
+ * @param targetUrl URL cible du sticker (pour auto-détection)
+ * @param customNetwork Réseau forcé manuellement par l'admin (null/undefined = auto)
+ * @returns Network (null = pas de logo réseau = sticker générique)
+ */
+export function getEffectiveNetwork(
+  targetUrl: string | null,
+  customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
+): Network {
+  if (customNetwork === 'none') return null
+  if (
+    customNetwork === 'google' ||
+    customNetwork === 'tiktok' ||
+    customNetwork === 'instagram'
+  ) {
+    return customNetwork
+  }
+  return detectNetwork(targetUrl)
+}
+
+/**
  * Génère le SVG complet du sticker 10×10 cm.
  *
  * @param opts.qrSvgString Le SVG (chaîne) du QR code rendu par qrcode.react
@@ -84,6 +109,9 @@ export function renderStickerSvg(opts: {
   brandLogoUrl: string
   brandPhone: string
   baseUrl?: string // ex: "https://dkr-tap3-exzn.vercel.app"
+  /** Texte d'action personnalisé — si fourni, remplace le texte par défaut du réseau.
+   *  Vide/null → utilise le défaut (NETWORKS[network].action ou "Scannez ce QR code"). */
+  customActionText?: string | null
 }): string {
   const { qrSvgString, network, publicUrl, brandName, brandLogoUrl } = opts
   const SIZE = 1181 // 10 cm @ 300 DPI
@@ -119,9 +147,12 @@ export function renderStickerSvg(opts: {
   const logoY = TOP_H / 2 - LOGO_SIZE / 2 - 30
 
   const actionFontSize = net ? 44 : 36
-  const actionText = net
-    ? net.action
-    : 'Scannez ce QR code'
+  // Texte d'action : priorité au custom fourni par l'admin, sinon défaut du réseau
+  const defaultActionText = net ? net.action : 'Scannez ce QR code'
+  const actionText =
+    opts.customActionText && opts.customActionText.trim()
+      ? opts.customActionText.trim()
+      : defaultActionText
   // Échapper le texte pour XML
   const actionEscaped = escapeXml(actionText)
   const actionY = logoY + LOGO_SIZE + 70
