@@ -36,6 +36,7 @@ import {
   Pencil,
   Trash2,
   QrCode,
+  ScanLine,
   Copy,
   ExternalLink,
   Loader2,
@@ -47,6 +48,7 @@ import {
   LogOut,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import { ScannerModal } from '@/components/scanner/scanner-modal'
 import {
   renderStickerSvg,
   detectNetwork,
@@ -132,6 +134,8 @@ export default function Home() {
   // Modals
   const [editOpen, setEditOpen] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
+  // Modal scanner QR code (pour édition rapide d'un sticker physique)
+  const [scannerOpen, setScannerOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [form, setForm] = useState<StickerForm>(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -330,6 +334,25 @@ export default function Home() {
       setForm(EMPTY_FORM)
     }
     setEditOpen(true)
+  }
+
+  // Quand un slug est scanné (caméra) ou saisi manuellement → ouvrir l'édition
+  // Retourne true si un sticker correspondant a été trouvé (le modal s'ouvre),
+  // false sinon (le scanner reste ouvert avec un message d'erreur).
+  const handleSlugScanned = (slug: string): boolean => {
+    const sticker = stickers.find(
+      (s) => s.slug.toLowerCase() === slug.toLowerCase()
+    )
+    if (!sticker) {
+      return false
+    }
+    // Ouvrir le modal d'édition du sticker trouvé
+    openEdit(sticker)
+    toast({
+      title: 'Sticker trouvé',
+      description: `Slug "${slug}" — ouverture de l'édition.`,
+    })
+    return true
   }
 
   // Sauvegarder (création ou update)
@@ -660,6 +683,15 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setScannerOpen(true)}
+              variant="outline"
+              className="self-start sm:self-auto"
+              title="Scanner un sticker physique pour l'éditer"
+            >
+              <ScanLine size={16} className="mr-1.5" />
+              Scanner
+            </Button>
             <Button onClick={() => openEdit()} className="self-start sm:self-auto">
               <Plus size={16} className="mr-1.5" />
               Nouveau sticker
@@ -1007,6 +1039,13 @@ export default function Home() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal Scanner QR code (caméra) */}
+      <ScannerModal
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onSlugScanned={handleSlugScanned}
+      />
 
       {/* Confirmation de suppression */}
       <AlertDialog
