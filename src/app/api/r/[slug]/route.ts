@@ -28,10 +28,17 @@ export async function GET(
     configured && sticker?.targetUrl ? sticker.targetUrl : null
 
   // Incrémenter le compteur de scans (atomique via store.incr)
+  // + loguer l'événement (analytics "activité récente" dans l'admin)
   // Uniquement si le sticker existe, pour ne pas polluer KV
   if (sticker) {
     db.incrementScanCount(slug).catch(() => {
       // Erreur non bloquante : la page s'affiche même si l'incrémentation échoue
+    })
+    db.logScan(slug, {
+      targetUrl: sticker.targetUrl,
+      label: sticker.label,
+    }).catch(() => {
+      // Idem : erreur non bloquante
     })
   }
 

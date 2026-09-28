@@ -79,6 +79,32 @@ const EMPTY_FORM: StickerForm = {
   active: true,
 }
 
+// Payload retourné par GET /api/stats
+type StatsPayload = {
+  generatedAt: string
+  summary: {
+    total: number
+    configured: number
+    blank: number
+    active: number
+    totalScans: number
+    avgScansPerSticker: number
+  }
+  topStickers: Array<{
+    slug: string
+    label: string | null
+    targetUrl: string | null
+    scanCount: number
+    active: boolean
+  }>
+  recentScans: Array<{
+    slug: string
+    ts: string
+    targetUrl: string | null
+    label: string | null
+  }>
+}
+
 // Branding — lu depuis les variables d'env NEXT_PUBLIC_*
 // (évalué au build time côté client, mais reste configurable via .env)
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'ScanBridge'
@@ -113,6 +139,9 @@ export default function Home() {
   const [saving, setSaving] = useState(false)
   // Ref sur le conteneur du QR SVG pour permettre le download PNG local
   const qrSvgRef = useRef<HTMLDivElement>(null)
+  // Stats détaillées (top stickers + activité récente)
+  const [statsData, setStatsData] = useState<StatsPayload | null>(null)
+  const [statsLoading, setStatsLoading] = useState(false)
 
   // Récupérer la liste des stickers
   const fetchStickers = useCallback(async () => {
@@ -174,6 +203,34 @@ export default function Home() {
       fetchStickers()
     }
   }, [authState.status, fetchStickers])
+
+  // Récupérer les statistiques (top stickers + activité récente)
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true)
+    try {
+      const res = await fetch('/api/stats', { cache: 'no-store' })
+      if (res.status === 401) {
+        setAuthState({ status: 'unauthenticated' })
+        return
+      }
+      if (!res.ok) throw new Error('Erreur réseau')
+      const data: StatsPayload = await res.json()
+      setStatsData(data)
+    } catch {
+      // Silencieux — pas de toast pour ne pas polluer
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (authState.status === 'authenticated') {
+      fetchStats()
+    }
+  }, [authState.status, fetchStats])
+
+  // Re-charger les stats après modification d'un sticker ou scan test via curl
+  // (rafraîchissement manuel via le bouton "Rafraîchir" dans la section stats)
 
   // Connexion
   const handleLogin = async (e: React.FormEvent) => {
@@ -722,6 +779,21 @@ export default function Home() {
             )}
           </CardContent>
         </Card>
+
+        {/* Section Statistiques détaillées */}
+        <StatsDetailSection
+          stats={statsData}
+          loading={statsLoading}
+          onRefresh={fetchStats}
+          onOpenSticker={(slug) => {
+            // Ouvrir le modal QR du sticker
+            const sticker = stickers.find((s) => s.slug === slug)
+            if (sticker) {
+              setQrSticker(sticker)
+              setQrOpen(true)
+            }
+          }}
+        />
       </main>
 
       {/* Footer */}
@@ -967,6 +1039,210 @@ export default function Home() {
 }
 
 /* ---------------- Sous-composants ---------------- */
+
+/**
+ * Section "Statistiques détaillées" — affichée après la liste des stickers.
+ * Contient :
+ *   - Top 5 stickers par scans (avec barres horizontales relatives)
+ *   - Activité récente : 5 derniers scans (slug + timestamp + label)
+ *
+ * Bouton "Rafraîchir" pour re-fetcher les stats (utile après un scan de test).
+ */
+function StatsDetailSection({
+  stats,
+  loading,
+  onRefresh,
+  onOpenSticker,
+}: {
+  stats: StatsPayload | null
+  loading: boolean
+  onRefresh: () => void
+  onOpenSticker: (slug: string) => void
+}) {
+  // Calcul du max pour les barres horizontales (Top stickers)
+  const maxScans =
+    stats?.topStickers?.reduce(
+      (max, s) => Math.max(max, s.scanCount),
+      0
+    ) || 0
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+      {/* Top stickers */}
+      <Card className="bg-white border-zinc-200">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base font-semibold">
+              Top 5 stickers
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Classés par nombre de scans
+            </CardDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onRefresh}
+            disabled={loading}
+            title="Rafraîchir les statistiques"
+          >
+            {loading ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <RefreshIcon size={14} />
+            )}
+          </Button>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {!stats || stats.topStickers.length === 0 ? (
+            <p className="text-sm text-zinc-400 py-6 text-center">
+              Aucun sticker scanné pour le moment
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {stats.topStickers.map((s, i) => {
+                const pct =
+                  maxScans > 0 ? Math.round((s.scanCount / maxScans) * 100) : 0
+                return (
+                  <button
+                    key={s.slug}
+                    onClick={() => onOpenSticker(s.slug)}
+                    className="w-full text-left hover:bg-zinc-50 rounded-lg p-2 -m-2 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                          i === 0
+                            ? 'bg-amber-100 text-amber-700'
+                            : i === 1
+                              ? 'bg-zinc-200 text-zinc-700'
+                              : i === 2
+                                ? 'bg-orange-100 text-orange-700'
+                                : 'bg-zinc-100 text-zinc-500'
+                        }`}
+                      >
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <code className="text-sm font-mono font-medium text-zinc-900 truncate group-hover:underline">
+                            {s.slug}
+                          </code>
+                          <span className="text-xs font-semibold text-zinc-600 shrink-0">
+                            {s.scanCount} scan{s.scanCount > 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        {s.label && (
+                          <p className="text-xs text-zinc-500 truncate mb-1.5">
+                            {s.label}
+                          </p>
+                        )}
+                        {/* Barre horizontale relative */}
+                        <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500 rounded-full transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Activité récente */}
+      <Card className="bg-white border-zinc-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold">
+            Activité récente
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Les 5 derniers scans
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {!stats || stats.recentScans.length === 0 ? (
+            <p className="text-sm text-zinc-400 py-6 text-center">
+              Aucune activité récente
+            </p>
+          ) : (
+            <div className="space-y-2.5">
+              {stats.recentScans.map((scan, i) => (
+                <div
+                  key={`${scan.slug}-${scan.ts}-${i}`}
+                  className="flex items-start gap-3 py-1.5 border-b border-zinc-50 last:border-0"
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-2 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <code className="text-xs font-mono font-medium text-zinc-900 truncate">
+                        {scan.slug}
+                      </code>
+                      <span className="text-xs text-zinc-400 shrink-0 font-mono">
+                        {formatRelativeTime(scan.ts)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-zinc-500 truncate">
+                      {scan.label ? (
+                        <span>{scan.label} · </span>
+                      ) : null}
+                      <span className="text-zinc-400">
+                        → {scan.targetUrl || '(non configuré)'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+/** Formate un timestamp ISO en "il y a X" relatif. */
+function formatRelativeTime(iso: string): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  const diffMs = Date.now() - date.getTime()
+  if (Number.isNaN(diffMs)) return ''
+  if (diffMs < 60_000) return 'à l\'instant'
+  const diffMin = Math.round(diffMs / 60_000)
+  if (diffMin < 60) return `il y a ${diffMin} min`
+  const diffH = Math.round(diffMin / 60)
+  if (diffH < 24) return `il y a ${diffH}h`
+  const diffD = Math.round(diffH / 24)
+  if (diffD < 30) return `il y a ${diffD}j`
+  return date.toLocaleDateString('fr-FR')
+}
+
+/** Icône Refresh custom (évite un import supplémentaire de lucide). */
+function RefreshIcon({ size = 16, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M3 21v-5h5" />
+    </svg>
+  )
+}
 
 /**
  * Preview du sticker complet (rendu via renderStickerSvg injecté comme innerHTML).

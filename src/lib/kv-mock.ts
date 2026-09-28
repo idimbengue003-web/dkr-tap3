@@ -21,6 +21,7 @@ export class MockKV {
   private strings = new Map<string, unknown>()
   private sets = new Map<string, Set<string>>()
   private zsets = new Map<string, Map<string, number>>() // member → score
+  private lists = new Map<string, unknown[]>() // pour LPUSH/LRANGE/LTRIM
 
   async get<T = unknown>(key: string): Promise<T | null> {
     if (!this.strings.has(key)) return null
@@ -175,18 +176,64 @@ export class MockKV {
     return v
   }
 
+  // === List operations (LPUSH / LRANGE / LTRIM) ===
+
+  async lpush(key: string, ...values: unknown[]): Promise<number> {
+    if (!this.lists.has(key)) this.lists.set(key, [])
+    const list = this.lists.get(key)!
+    // LPUSH insère à gauche (en tête) — dernier élément inséré = premier
+    for (const v of values) {
+      list.unshift(JSON.parse(JSON.stringify(v)))
+    }
+    return list.length
+  }
+
+  async lrange<T = unknown>(
+    key: string,
+    start: number,
+    stop: number
+  ): Promise<T[]> {
+    const list = this.lists.get(key)
+    if (!list || list.length === 0) return []
+    const len = list.length
+    // Indices négatifs relatifs à la fin
+    let s = start < 0 ? Math.max(0, len + start) : Math.min(start, len - 1)
+    let e = stop < 0 ? Math.max(0, len + stop) : Math.min(stop, len - 1)
+    if (s > e || s >= len) return []
+    return list.slice(s, e + 1) as T[]
+  }
+
+  async ltrim(key: string, start: number, stop: number): Promise<'OK'> {
+    const list = this.lists.get(key)
+    if (!list) return 'OK'
+    const len = list.length
+    let s = start < 0 ? Math.max(0, len + start) : Math.min(start, len - 1)
+    let e = stop < 0 ? Math.max(0, len + stop) : Math.min(stop, len - 1)
+    if (s > e || s >= len) {
+      this.lists.delete(key)
+    } else {
+      this.lists.set(key, list.slice(s, e + 1))
+    }
+    return 'OK'
+  }
+
   /** Reset complet — utile pour les tests. */
   reset(): void {
     this.strings.clear()
     this.sets.clear()
     this.zsets.clear()
+    this.lists.clear()
   }
 }
 
-// Singleton global pour partager l'état entre les appels au sein d'un même process
-let globalMock: MockKV | null = null
+// Singleton global pour partager l'état entre les appels au sein d'un même process.
+// Utilise globalThis (comme Prisma) pour survivre aux hot reloads HMR de Next.js
+// en mode dev — sinon chaque requête obtient un MockKV vide.
+declare global {
+  var __mockKv: MockKV | undefined
+}
 
 export function getMockKv(): MockKV {
-  if (!globalMock) globalMock = new MockKV()
-  return globalMock
+  if (!globalThis.__mockKv) globalThis.__mockKv = new MockKV()
+  return globalThis.__mockKv
 }

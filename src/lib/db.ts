@@ -208,4 +208,61 @@ export const db = {
     if (!exists) return
     await store.incr(`scans:${slug}`)
   },
+
+  /**
+   * Log un événement de scan (appelé en parallèle de incrementScanCount).
+   * Stocké dans une liste Redis `scans:log` (LRANGE pour récupérer, LTRIM
+   * pour limiter à 100 entrées récentes — évite l'inflation).
+   *
+   * L'événement contient : slug, timestamp, et targetUrl optionnel (snapshot
+   * au moment du scan — utile pour analytics "à quelle URL pointait ce
+   * sticker quand il a été scanné").
+   */
+  async logScan(
+    slug: string,
+    meta: { targetUrl: string | null; label: string | null }
+  ): Promise<void> {
+    const exists = await store.exists(`sticker:${slug}`)
+    if (!exists) return
+
+    const event = {
+      slug,
+      ts: new Date().toISOString(),
+      targetUrl: meta.targetUrl,
+      label: meta.label,
+    }
+    // LPUSH insère en tête → les plus récents d'abord
+    await store.lpush('scans:log', event)
+    // LTRIM à 100 entrées max (de 0 à 99)
+    await store.ltrim('scans:log', 0, 99)
+  },
+
+  /**
+   * Récupère les N derniers scans (logs d'événements).
+   */
+  async getRecentScans(limit = 10): Promise<
+    Array<{
+      slug: string
+      ts: string
+      targetUrl: string | null
+      label: string | null
+    }>
+  > {
+    const events = await store.lrange<
+      | { slug: string; ts: string; targetUrl: string | null; label: string | null }
+      | string
+    >('scans:log', 0, Math.max(0, limit - 1))
+
+    // @vercel/kv stocke en JSON, MockKV aussi — on devrait toujours récupérer des objets
+    return events.map((e) => {
+      if (typeof e === 'string') {
+        try {
+          return JSON.parse(e)
+        } catch {
+          return { slug: 'unknown', ts: '', targetUrl: null, label: null }
+        }
+      }
+      return e
+    })
+  },
 }
