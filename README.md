@@ -1,13 +1,13 @@
-# QR Passerelle
+# DKR TAP — Passerelle QR
 
 Passerelle de redirection QR code avec interface d'administration.
 Chaque sticker physique porte un QR code qui pointe vers `https://VOTRE-DOMAINE/api/r/<slug>`.
-Quand quelqu'un scanne le QR, l'application redirige (302) vers l'URL cible configurée pour ce slug — modifiable à tout moment depuis l'interface admin, sans réimprimer le QR.
+Quand quelqu'un scanne le QR, l'application affiche une page d'attente branded puis redirige (auto après 600 ms) vers l'URL cible — modifiable à tout moment depuis l'admin, sans réimprimer le QR.
 
 ## Stack
 
-- Next.js 16 (App Router, Turbopack) + TypeScript 5
-- Prisma + SQLite (base fichier local — pour Railway, voir ci-dessous)
+- **Next.js 16** (App Router, Turbopack) + TypeScript 5
+- **Vercel KV** (Redis managé) pour le stockage — _compatibilité Vercel gratuite_
 - Tailwind CSS 4 + shadcn/ui (composants) + lucide-react (icônes)
 - Auth stateless par cookie HMAC-SHA256 (cookie `httpOnly`)
 - QR code généré localement via `qrcode.react` (aucune dépendance externe)
@@ -16,59 +16,82 @@ Quand quelqu'un scanne le QR, l'application redirige (302) vers l'URL cible conf
 
 | Variable | Description | Défaut dev |
 |---|---|---|
-| `DATABASE_URL` | URL Prisma — `file:./db/custom.db` en local | oui |
-| `ADMIN_PASSWORD` | Mot de passe pour accéder à l'interface admin + API `/api/stickers` | requis |
+| `KV_REST_API_URL` | URL Vercel KV (auto-injectée sur Vercel) | mock si absent |
+| `KV_REST_API_TOKEN` | Token Vercel KV (auto-injecté sur Vercel) | mock si absent |
+| `ADMIN_PASSWORD` | Mot de passe pour accéder à l'admin + API `/api/stickers` | requis |
 | `AUTH_SESSION_HOURS` | Durée de validité du cookie admin en heures | `24` |
+| `NEXT_PUBLIC_BRAND_NAME` | Nom de marque affiché partout | `ScanBridge` |
+| `NEXT_PUBLIC_BRAND_LOGO_URL` | URL du logo de marque | `/scanbridge-logo.svg` |
+| `NEXT_PUBLIC_BRAND_PHONE` | Téléphone affiché sur stickers + page d'attente | vide |
 
 ⚠️ **Sans `ADMIN_PASSWORD`, l'accès à l'admin est bloqué** (page d'erreur explicite + API renvoie 503).
 
-## Déploiement sur Railway
+## 💚 Déploiement sur Vercel (gratuit)
 
-Railway est compatible Node.js natif — pas besoin d'adapter le code, juste quelques configs.
+Vercel KV a un free tier généreux (30 000 commandes/jour) — largement suffisant pour un réseau de stickers QR.
 
-### 1. Préparer Railway
+### Étapes
 
-1. Créer un nouveau projet sur [railway.app](https://railway.app)
-2. Choisir **"Deploy from GitHub repo"** et connecter ce dépôt
-3. Railway détecte automatiquement Next.js et lance `npm run build && npm start`
+1. **Pousser le code sur GitHub**
 
-### 2. Variables d'environnement Railway
+2. **Sur [vercel.com](https://vercel.com)** : "Add New → Project" → importer le repo GitHub
+   - Vercel détecte automatiquement Next.js → build & start par défaut
 
-Dans **Variables** du service Railway, ajouter :
+3. **Créer la KV database** (gratuit)
+   - Onglet **Storage → Create Database → KV**
+   - Nom : `dkr-tap-kv` (ou autre)
+   - Region : la plus proche de vos clients
+   - **Connect to Project** : sélectionner votre projet Vercel
+   - Les variables `KV_REST_API_URL`, `KV_REST_API_TOKEN` etc. sont **automatiquement injectées** dans le projet
+
+4. **Configurer les variables d'env** (Project Settings → Environment Variables)
+   ```
+   ADMIN_PASSWORD=<votre-mot-de-passe-fort>
+   AUTH_SESSION_HOURS=8
+   NEXT_PUBLIC_BRAND_NAME=DKR TAP
+   NEXT_PUBLIC_BRAND_LOGO_URL=/scanbridge-logo.svg
+   NEXT_PUBLIC_BRAND_PHONE=78 927 12 96
+   ```
+
+5. **Redéployer** (Deployments → Redeploy)
+
+6. **Récupérer le domaine public** Vercel : `https://<votre-projet>.vercel.app`
+   - C'est l'URL à encoder dans les QR codes
+   - Format URL publique : `https://<votre-projet>.vercel.app/api/r/<slug>`
+
+### Dev local sans Vercel KV
+
+Aucune configuration nécessaire — un **MockKV en mémoire** est automatiquement utilisé quand les variables `KV_REST_API_URL` et `KV_REST_API_TOKEN` ne sont pas définies. Les données ne persistent pas entre redémarrages, mais l'app fonctionne pour le dev et les tests.
 
 ```bash
-ADMIN_PASSWORD=<votre-mot-de-passe-secret-fort>
-AUTH_SESSION_HOURS=8
-DATABASE_URL=file:/data/custom.db
+bun install
+bun run dev   # http://localhost:3000
 ```
 
-Pour la persistance de la base SQLite sur Railway, créer un **Volume** :
+Pour tester avec un vrai Vercel KV en local :
+1. Créez la KV database sur Vercel
+2. Récupérez les variables `KV_REST_API_URL` et `KV_REST_API_TOKEN` (Settings → Environment Variables)
+3. Mettez-les dans `.env.local` : `vercel env pull .env.local`
+4. Le client `@vercel/kv` les détectera automatiquement
 
-- Onglet **Settings → Volumes → Add Volume**
-- Mount path : `/data`
-- Railway fournit un chemin persistant — la base survivra aux redémarrages
+## Structure de stockage KV
 
-### 3. Build & Start commands
+L'app utilise 4 types de clés :
 
-Railway utilise par défaut `next build` + `next start`. Pas besoin de configurer. Si vous voulez être explicite :
+| Clé | Type | Valeur |
+|---|---|---|
+| `sticker:<slug>` | String (JSON) | Objet sticker (id, slug, label, targetUrl, active, createdAt, updatedAt) |
+| `stickerId:<id>` | String | slug (mapping pour lookup par id) |
+| `stickers:by_created` | ZSET | score = timestamp createdAt, member = slug (pour lister triés par date) |
+| `scans:<slug>` | Integer | compteur de scans (incrément atomique via `INCR`) |
 
-```jsonc
-// railway.json ou Settings → Build
-"buildCommand": "prisma generate && next build",
-"startCommand": "prisma db push --accept-data-loss && next start"
-```
-
-### 4. Domaine publique
-
-Dans **Settings → Networking → Generate Domain** pour obtenir `https://<votre-app>.up.railway.app`.
-
-C'est l'URL à encoder dans les QR codes (format : `https://<votre-app>.up.railway.app/api/r/<slug>`).
+Le scan count est stocké dans une clé séparée pour permettre l'incrément atomique (pas de race condition en serverless).
 
 ## API endpoints
 
 | Méthode | Route | Auth | Rôle |
 |---|---|---|---|
-| GET | `/api/r/<slug>` | Public | Redirige 302 vers l'URL cible (ou `/not-configured` si non configuré) |
+| GET | `/api/r/<slug>` | Public | Page d'attente + redirect 600 ms |
 | GET | `/api/stickers` | Cookie admin | Liste tous les stickers |
 | POST | `/api/stickers` | Cookie admin | Crée un sticker |
 | PUT | `/api/stickers/<id>` | Cookie admin | Modifie label, targetUrl, active |
@@ -77,21 +100,31 @@ C'est l'URL à encoder dans les QR codes (format : `https://<votre-app>.up.railw
 | POST | `/api/auth/logout` | Public | Déconnecte |
 | GET | `/api/auth/check` | Public | Retourne `{configured, authenticated}` |
 
-## Développement local
+## Sticker physique (10×10 cm)
 
-```bash
-bun install
-bun run db:push     # crée la base SQLite
-bun run dev         # http://localhost:3000
+Le template de sticker est généré automatiquement par l'admin (bouton "Voir le QR code" → "Télécharger le sticker"). Layout :
+
+```
+┌─────────────────────────────┐
+│  TOP : logo réseau + action │  ← auto-détecté depuis l'URL cible
+│  "Laissez-nous 5 étoiles ⭐"│     (Google / TikTok / Instagram)
+├─────────────────────────────┤
+│  MIDDLE : QR code (460px)    │
+├─────────────────────────────┤
+│  BOTTOM : bande DKR TAP     │
+│  + téléphone 78 927 12 96   │
+└─────────────────────────────┘
 ```
 
-Le serveur dev recharge automatiquement les modifications.
+PNG exporté en 1181×1181 px (300 DPI, prêt pour impression pro).
 
-## Migration vers PostgreSQL (optionnel)
+## Migration depuis Prisma + SQLite
 
-Si le volume SQLite de Railway devient limitant, migrer vers PostgreSQL Railway :
+Cette version utilise Vercel KV (Redis). Si vous migrez depuis une ancienne version SQLite :
 
-1. Ajouter le plugin PostgreSQL sur Railway
-2. Récupérer `DATABASE_URL` (format `postgresql://...`)
-3. Dans `prisma/schema.prisma`, changer `provider = "sqlite"` → `provider = "postgresql"`
-4. Lancer `prisma db push` au démarrage (railway.json startCommand ci-dessus le fait déjà)
+1. Exportez vos stickers SQLite : `sqlite3 db/custom.db "SELECT * FROM Sticker;" > stickers.csv`
+2. Créez la KV database sur Vercel (voir ci-dessus)
+3. Pour chaque sticker, POST vers `/api/stickers` avec `{label, targetUrl, slug, active}`
+4. Vérifiez via GET `/api/stickers`
+
+Le script de migration n'est pas fourni automatiquement — la structure est simple (1 entité + scans), un script ad hoc en NodeJS prend 10 lignes.

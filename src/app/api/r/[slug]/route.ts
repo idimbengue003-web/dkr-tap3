@@ -7,39 +7,32 @@ export const dynamic = 'force-dynamic'
 // GET /api/r/[slug]
 // Renvoie une page HTML d'attente professionnelle (200 OK) qui :
 //   - si le sticker est configuré et actif → affiche "Connexion sécurisée
-//     via [COMPANY_NAME]... Redirection vers la page du commerçant." et
+//     via [BRAND]... Redirection vers la page du commerçant." et
 //     redirige automatiquement après ~600ms (meta refresh + JS fallback)
 //   - sinon → affiche une page d'attente avec message "sticker non configuré"
 //
-// Le scanCount est incrémenté au moment du rendu (un seul appel DB).
+// Le scanCount est incrémenté atomiquement via store.incr() (clé séparée scans:<slug>).
 //
-// Renvoie explicitement Content-Type: text/html pour que le navigateur
-// interprète la réponse comme une page.
+// Stockage : Vercel KV (Redis) en production, MockKV en mémoire en dev local.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params
 
-  // Récupérer le sticker
-  const sticker = await db.sticker.findUnique({
-    where: { slug },
-  })
+  // Récupérer le sticker par son slug
+  const sticker = await db.getStickerBySlug(slug)
 
   const configured = !!sticker && !!sticker.targetUrl && sticker.active
-  const targetUrl = configured && sticker?.targetUrl ? sticker.targetUrl : null
+  const targetUrl =
+    configured && sticker?.targetUrl ? sticker.targetUrl : null
 
-  // Incrémenter le compteur de scans uniquement si le sticker existe
-  // (pour éviter de polluer la DB avec des scans de stickers inconnus)
+  // Incrémenter le compteur de scans (atomique via store.incr)
+  // Uniquement si le sticker existe, pour ne pas polluer KV
   if (sticker) {
-    db.sticker
-      .update({
-        where: { id: sticker.id },
-        data: { scanCount: { increment: 1 } },
-      })
-      .catch(() => {
-        // Erreur non bloquante : la page s'affiche même si l'incrémentation échoue
-      })
+    db.incrementScanCount(slug).catch(() => {
+      // Erreur non bloquante : la page s'affiche même si l'incrémentation échoue
+    })
   }
 
   // Rendre la page HTML d'attente

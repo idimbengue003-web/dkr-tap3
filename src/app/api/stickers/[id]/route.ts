@@ -19,7 +19,7 @@ export async function PUT(
     const { label, targetUrl, active } = body
 
     // Vérifier existence
-    const existing = await db.sticker.findUnique({ where: { id } })
+    const existing = await db.getStickerById(id)
     if (!existing) {
       return NextResponse.json(
         { error: 'Sticker introuvable' },
@@ -35,7 +35,8 @@ export async function PUT(
     } = {}
 
     if (label !== undefined) {
-      data.label = typeof label === 'string' && label.trim() ? label.trim() : null
+      data.label =
+        typeof label === 'string' && label.trim() ? label.trim() : null
     }
 
     if (targetUrl !== undefined) {
@@ -57,10 +58,13 @@ export async function PUT(
       data.active = Boolean(active)
     }
 
-    const updated = await db.sticker.update({
-      where: { id },
-      data,
-    })
+    const updated = await db.updateSticker(id, data)
+    if (!updated) {
+      return NextResponse.json(
+        { error: 'Sticker introuvable' },
+        { status: 404 }
+      )
+    }
 
     return NextResponse.json(updated)
   } catch (error) {
@@ -84,7 +88,7 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    const existing = await db.sticker.findUnique({ where: { id } })
+    const existing = await db.getStickerById(id)
     if (!existing) {
       return NextResponse.json(
         { error: 'Sticker introuvable' },
@@ -92,7 +96,7 @@ export async function DELETE(
       )
     }
 
-    await db.sticker.delete({ where: { id } })
+    await db.deleteSticker(id)
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[DELETE /api/stickers/[id]]', error)

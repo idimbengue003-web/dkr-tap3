@@ -15,13 +15,17 @@ export async function POST(request: NextRequest) {
     const { label, targetUrl, slug: customSlug, active = true } = body
 
     // Générer un slug unique court si non fourni (8 caractères base36)
-    let slug = (typeof customSlug === 'string' && customSlug.trim())
-      ? customSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-')
-      : Math.random().toString(36).slice(2, 10)
+    let slug =
+      typeof customSlug === 'string' && customSlug.trim()
+        ? customSlug
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9-]/g, '-')
+        : Math.random().toString(36).slice(2, 10)
 
     // Vérifier l'unicité du slug et en régénérer un si collision
     let attempts = 0
-    while (await db.sticker.findUnique({ where: { slug } })) {
+    while (await db.slugExists(slug)) {
       if (attempts++ > 10) {
         slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`
         break
@@ -33,8 +37,7 @@ export async function POST(request: NextRequest) {
     let finalTargetUrl: string | null = null
     if (typeof targetUrl === 'string' && targetUrl.trim()) {
       try {
-        const u = new URL(targetUrl.trim())
-        finalTargetUrl = u.toString()
+        finalTargetUrl = new URL(targetUrl.trim()).toString()
       } catch {
         return NextResponse.json(
           { error: 'URL cible invalide' },
@@ -43,13 +46,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const sticker = await db.sticker.create({
-      data: {
-        slug,
-        label: label?.trim() || null,
-        targetUrl: finalTargetUrl,
-        active: Boolean(active),
-      },
+    const sticker = await db.createSticker({
+      slug,
+      label: label?.trim() || null,
+      targetUrl: finalTargetUrl,
+      active: Boolean(active),
     })
 
     return NextResponse.json(sticker, { status: 201 })
@@ -70,9 +71,7 @@ export async function GET(request: NextRequest) {
   if (guard) return guard
 
   try {
-    const stickers = await db.sticker.findMany({
-      orderBy: { createdAt: 'desc' },
-    })
+    const stickers = await db.listStickers()
     return NextResponse.json(stickers)
   } catch (error) {
     console.error('[GET /api/stickers]', error)

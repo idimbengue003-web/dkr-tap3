@@ -1,13 +1,211 @@
-import { PrismaClient } from '@prisma/client'
+import { kv } from '@vercel/kv'
+import { getMockKv } from './kv-mock'
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+/**
+ * Détecte si Vercel KV est configuré (env vars injectées par Vercel
+ * à la création d'une KV database dans le dashboard).
+ *
+ * Si oui → on utilise le vrai client @vercel/kv (production sur Vercel).
+ * Si non → on utilise le MockKV en mémoire (dev local, sandbox, CI).
+ */
+const isKVConfigured =
+  !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
+
+export const store = isKVConfigured ? kv : getMockKv()
+
+// Pour le debug : afficher quel mode est utilisé au premier appel
+if (!isKVConfigured && process.env.NODE_ENV !== 'production') {
+  console.warn(
+    '[KV] Variables KV_REST_API_URL / KV_REST_API_TOKEN manquantes — utilisation du MockKV en mémoire. ' +
+      'Les données ne seront PAS persistées entre redémarrages. ' +
+      'Sur Vercel, créez une KV database pour activer le vrai stockage.'
+  )
 }
 
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: ['query'],
-  })
+/* ---------------- Types ---------------- */
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
+export type Sticker = {
+  id: string
+  slug: string
+  label: string | null
+  targetUrl: string | null
+  scanCount: number
+  active: boolean
+  createdAt: string // ISO string (sérialisable JSON)
+  updatedAt: string
+}
+
+export type StickerInput = {
+  slug: string
+  label: string | null
+  targetUrl: string | null
+  active: boolean
+}
+
+export type StickerUpdate = Partial<
+  Pick<Sticker, 'label' | 'targetUrl' | 'active'>
+>
+
+/* ---------------- Helpers ---------------- */
+
+function generateId(): string {
+  // Cuid-like : timestamp + random pour éviter les collisions
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
+}
+
+/**
+ * Récupère un sticker + son compteur de scans (clé séparée pour incrément
+ * atomique) depuis KV.
+ */
+async function getStickerWithScans(slug: string): Promise<Sticker | null> {
+  const [stickerData, scanCount] = await Promise.all([
+    store.get<Omit<Sticker, 'scanCount'>>(`sticker:${slug}`),
+    store.get<number>(`scans:${slug}`),
+  ])
+  if (!stickerData) return null
+  return {
+    ...stickerData,
+    scanCount: typeof scanCount === 'number' ? scanCount : 0,
+  }
+}
+
+/* ---------------- API publique ---------------- */
+
+export const db = {
+  /**
+   * Crée un sticker. Retourne le sticker créé.
+   * Le slug doit être unique — l'appelant doit le vérifier avant.
+   */
+  async createSticker(input: StickerInput): Promise<Sticker> {
+    const now = new Date().toISOString()
+    const sticker: Omit<Sticker, 'scanCount'> = {
+      id: generateId(),
+      slug: input.slug,
+      label: input.label,
+      targetUrl: input.targetUrl,
+      active: input.active,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    // Pipeline-like : set sticker + set id→slug mapping + zadd index
+    await store.set(`sticker:${input.slug}`, sticker)
+    await store.set(`stickerId:${sticker.id}`, input.slug)
+    // ZSET par createdAt pour pouvoir lister par ordre desc rapidement
+    await store.zadd('stickers:by_created', Date.parse(now), input.slug)
+
+    return { ...sticker, scanCount: 0 }
+  },
+
+  /**
+   * Vérifie si un slug est déjà pris.
+   */
+  async slugExists(slug: string): Promise<boolean> {
+    return (await store.exists(`sticker:${slug}`)) > 0
+  },
+
+  /**
+   * Récupère un sticker par son slug (cas d'usage : scan QR).
+   * Ne déclenche PAS l'incrément du scan count — utiliser incrementScanCount().
+   */
+  async getStickerBySlug(slug: string): Promise<Sticker | null> {
+    return getStickerWithScans(slug)
+  },
+
+  /**
+   * Récupère un sticker par son id (cas d'usage : PUT/DELETE admin).
+   */
+  async getStickerById(id: string): Promise<Sticker | null> {
+    const slug = await store.get<string>(`stickerId:${id}`)
+    if (!slug) return null
+    return getStickerWithScans(slug)
+  },
+
+  /**
+   * Liste tous les stickers triés par createdAt desc.
+   */
+  async listStickers(): Promise<Sticker[]> {
+    // Récupère tous les slugs triés par createdAt DESC
+    const slugs = await store.zrange<string>('stickers:by_created', 0, -1, {
+      rev: true,
+    })
+    if (!slugs.length) return []
+
+    // Batch fetch : stickers + scan counts en parallèle
+    const [stickerDataList, scanCountList] = await Promise.all([
+      store.mget<Omit<Sticker, 'scanCount'>>(
+        ...slugs.map((s) => `sticker:${s}`)
+      ),
+      store.mget<number>(...slugs.map((s) => `scans:${s}`)),
+    ])
+
+    const result: Sticker[] = []
+    for (let i = 0; i < slugs.length; i++) {
+      const data = stickerDataList[i]
+      if (!data) continue // sticker supprimé mais toujours dans le ZSET (race)
+      result.push({
+        ...data,
+        scanCount: typeof scanCountList[i] === 'number' ? scanCountList[i]! : 0,
+      })
+    }
+    return result
+  },
+
+  /**
+   * Met à jour un sticker par son id. Retourne le sticker mis à jour ou null.
+   * Le slug n'est pas modifiable (déjà imprimé sur les QR codes physiques).
+   */
+  async updateSticker(
+    id: string,
+    updates: StickerUpdate
+  ): Promise<Sticker | null> {
+    const slug = await store.get<string>(`stickerId:${id}`)
+    if (!slug) return null
+
+    const existing = await store.get<Omit<Sticker, 'scanCount'>>(
+      `sticker:${slug}`
+    )
+    if (!existing) return null
+
+    const updated: Omit<Sticker, 'scanCount'> = {
+      ...existing,
+      ...(updates.label !== undefined ? { label: updates.label } : {}),
+      ...(updates.targetUrl !== undefined
+        ? { targetUrl: updates.targetUrl }
+        : {}),
+      ...(updates.active !== undefined ? { active: updates.active } : {}),
+      updatedAt: new Date().toISOString(),
+    }
+
+    await store.set(`sticker:${slug}`, updated)
+    return getStickerWithScans(slug)
+  },
+
+  /**
+   * Supprime un sticker par son id. Retourne true si supprimé.
+   */
+  async deleteSticker(id: string): Promise<boolean> {
+    const slug = await store.get<string>(`stickerId:${id}`)
+    if (!slug) return false
+
+    // Supprimer sticker, mapping id→slug, compteur de scans, et entrée du ZSET
+    await store.del(
+      `sticker:${slug}`,
+      `stickerId:${id}`,
+      `scans:${slug}`
+    )
+    await store.zrem('stickers:by_created', slug)
+    return true
+  },
+
+  /**
+   * Incrément atomique du compteur de scans (appelé lors du scan QR).
+   * Ne fait rien si le sticker n'existe pas.
+   */
+  async incrementScanCount(slug: string): Promise<void> {
+    // Vérifie que le sticker existe pour ne pas polluer KV avec des compteurs orphelins
+    const exists = await store.exists(`sticker:${slug}`)
+    if (!exists) return
+    await store.incr(`scans:${slug}`)
+  },
+}
