@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-guard'
 
 // PUT /api/stickers/[id]
 // Met à jour un sticker (label, targetUrl, active).
 // Body: { label?, targetUrl?, active? }
+// Auth requis.
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const guard = await requireAuth(request)
+  if (guard) return guard
+
   try {
     const { id } = await params
     const body = await request.json()
@@ -68,10 +73,14 @@ export async function PUT(
 }
 
 // DELETE /api/stickers/[id]
+// Auth requis.
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const guard = await requireAuth(request)
+  if (guard) return guard
+
   try {
     const { id } = await params
 

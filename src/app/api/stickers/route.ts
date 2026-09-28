@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-guard'
 
 // POST /api/stickers
 // Crée un nouveau sticker (vierge ou avec URL).
 // Body: { label?, targetUrl?, slug?, active? }
+// Auth requis.
 export async function POST(request: NextRequest) {
+  const guard = await requireAuth(request)
+  if (guard) return guard
+
   try {
     const body = await request.json()
     const { label, targetUrl, slug: customSlug, active = true } = body
@@ -59,7 +64,11 @@ export async function POST(request: NextRequest) {
 
 // GET /api/stickers
 // Liste tous les stickers (tri par createdAt desc).
-export async function GET() {
+// Auth requis.
+export async function GET(request: NextRequest) {
+  const guard = await requireAuth(request)
+  if (guard) return guard
+
   try {
     const stickers = await db.sticker.findMany({
       orderBy: { createdAt: 'desc' },

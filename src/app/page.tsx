@@ -45,6 +45,8 @@ import {
   MousePointerClick,
   Globe,
   StickyNote,
+  Lock,
+  LogOut,
 } from 'lucide-react'
 
 type Sticker = {
@@ -80,6 +82,16 @@ export default function Home() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'configured' | 'blank'>('all')
 
+  // Auth state
+  type AuthState =
+    | { status: 'loading' }
+    | { status: 'unconfigured' }
+    | { status: 'unauthenticated' }
+    | { status: 'authenticated' }
+  const [authState, setAuthState] = useState<AuthState>({ status: 'loading' })
+  const [loginPassword, setLoginPassword] = useState('')
+  const [loginLoading, setLoginLoading] = useState(false)
+
   // Modals
   const [editOpen, setEditOpen] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
@@ -94,6 +106,16 @@ export default function Home() {
     setLoading(true)
     try {
       const res = await fetch('/api/stickers', { cache: 'no-store' })
+      if (res.status === 401) {
+        setAuthState({ status: 'unauthenticated' })
+        setStickers([])
+        return
+      }
+      if (res.status === 503) {
+        setAuthState({ status: 'unconfigured' })
+        setStickers([])
+        return
+      }
       if (!res.ok) throw new Error('Erreur réseau')
       const data = await res.json()
       setStickers(data)
@@ -108,9 +130,85 @@ export default function Home() {
     }
   }, [toast])
 
+  // Vérifier l'auth au montage
+  const checkAuth = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/check', { cache: 'no-store' })
+      if (!res.ok) {
+        setAuthState({ status: 'unauthenticated' })
+        return
+      }
+      const data: { configured: boolean; authenticated: boolean } = await res.json()
+      if (!data.configured) {
+        setAuthState({ status: 'unconfigured' })
+      } else if (data.authenticated) {
+        setAuthState({ status: 'authenticated' })
+      } else {
+        setAuthState({ status: 'unauthenticated' })
+      }
+    } catch {
+      setAuthState({ status: 'unauthenticated' })
+    }
+  }, [])
+
   useEffect(() => {
-    fetchStickers()
-  }, [fetchStickers])
+    checkAuth()
+  }, [checkAuth])
+
+  // Charger les stickers quand authentifié
+  useEffect(() => {
+    if (authState.status === 'authenticated') {
+      fetchStickers()
+    }
+  }, [authState.status, fetchStickers])
+
+  // Connexion
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (loginLoading || !loginPassword) return
+    setLoginLoading(true)
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: loginPassword }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast({
+          variant: 'destructive',
+          title: 'Connexion échouée',
+          description:
+            typeof data.error === 'string' ? data.error : 'Mot de passe incorrect',
+        })
+        return
+      }
+      toast({ title: 'Connecté', description: 'Bienvenue dans l\'interface admin.' })
+      setLoginPassword('')
+      setAuthState({ status: 'authenticated' })
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: 'Impossible de contacter le serveur.',
+      })
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
+  // Déconnexion
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+      toast({ title: 'Déconnecté' })
+      setStickers([])
+      setAuthState({ status: 'unauthenticated' })
+      router.refresh()
+    } catch {
+      // ignore
+    }
+  }
 
   // Filtrer la liste
   const filtered = useMemo(() => {
@@ -187,6 +285,17 @@ export default function Home() {
         body: JSON.stringify(payload),
       })
 
+      if (res.status === 401) {
+        setEditOpen(false)
+        setAuthState({ status: 'unauthenticated' })
+        toast({
+          variant: 'destructive',
+          title: 'Session expirée',
+          description: 'Veuillez vous reconnecter.',
+        })
+        return
+      }
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || 'Erreur lors de la sauvegarde')
@@ -217,6 +326,16 @@ export default function Home() {
       const res = await fetch(`/api/stickers/${deleteId}`, {
         method: 'DELETE',
       })
+      if (res.status === 401) {
+        setDeleteId(null)
+        setAuthState({ status: 'unauthenticated' })
+        toast({
+          variant: 'destructive',
+          title: 'Session expirée',
+          description: 'Veuillez vous reconnecter.',
+        })
+        return
+      }
       if (!res.ok) throw new Error('Erreur lors de la suppression')
 
       toast({ title: 'Sticker supprimé' })
@@ -255,6 +374,96 @@ export default function Home() {
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
+  // Écran de chargement pendant la vérification de session
+  if (authState.status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50">
+        <div className="flex flex-col items-center text-zinc-400">
+          <Loader2 size={28} className="animate-spin mb-3" />
+          <p className="text-sm">Vérification de l&apos;authentification...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Écran d'erreur de configuration
+  if (authState.status === 'unconfigured') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 p-6">
+        <Card className="max-w-md w-full bg-white border-zinc-200">
+          <CardHeader>
+            <CardTitle className="text-zinc-900">Authentification non configurée</CardTitle>
+            <CardDescription>
+              La variable d&apos;environnement <code className="px-1 py-0.5 bg-zinc-100 rounded text-xs font-mono">ADMIN_PASSWORD</code> n&apos;est pas définie.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-zinc-600">
+            <p>
+              Pour activer l&apos;authentification, ajoutez dans votre fichier <code className="px-1 py-0.5 bg-zinc-100 rounded text-xs font-mono">.env</code> :
+            </p>
+            <pre className="bg-zinc-900 text-zinc-100 text-xs p-3 rounded overflow-x-auto">
+{`ADMIN_PASSWORD=votre-mot-de-passe-secret`}
+            </pre>
+            <p>
+              Puis redémarrez le serveur de développement.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Écran de connexion
+  if (authState.status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 p-6">
+        <Card className="max-w-md w-full bg-white border-zinc-200">
+          <CardHeader className="space-y-3 text-center">
+            <div className="mx-auto w-12 h-12 rounded-xl bg-zinc-900 flex items-center justify-center text-white">
+              <Lock size={22} />
+            </div>
+            <CardTitle className="text-zinc-900">Accès réservé</CardTitle>
+            <CardDescription>
+              Saisissez le mot de passe administrateur pour gérer les stickers.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="password">Mot de passe</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  autoFocus
+                  placeholder="••••••••••••"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  disabled={loginLoading}
+                />
+              </div>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={loginLoading || !loginPassword}
+              >
+                {loginLoading ? (
+                  <>
+                    <Loader2 size={16} className="mr-1.5 animate-spin" />
+                    Connexion...
+                  </>
+                ) : (
+                  'Se connecter'
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Rendu principal (authentifié)
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50">
       {/* Header */}
@@ -271,10 +480,21 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <Button onClick={() => openEdit()} className="self-start sm:self-auto">
-            <Plus size={16} className="mr-1.5" />
-            Nouveau sticker
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => openEdit()} className="self-start sm:self-auto">
+              <Plus size={16} className="mr-1.5" />
+              Nouveau sticker
+            </Button>
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              size="icon"
+              title="Se déconnecter"
+              className="shrink-0"
+            >
+              <LogOut size={16} />
+            </Button>
+          </div>
         </div>
       </header>
 
