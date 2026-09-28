@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,6 +48,7 @@ import {
   Lock,
   LogOut,
 } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 
 type Sticker = {
   id: string
@@ -100,6 +101,8 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [qrSticker, setQrSticker] = useState<Sticker | null>(null)
   const [saving, setSaving] = useState(false)
+  // Ref sur le conteneur du QR SVG pour permettre le download PNG local
+  const qrSvgRef = useRef<HTMLDivElement>(null)
 
   // Récupérer la liste des stickers
   const fetchStickers = useCallback(async () => {
@@ -372,6 +375,85 @@ export default function Home() {
   // Ouvrir l'URL cible dans un nouvel onglet
   const openTarget = (url: string) => {
     window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  // Télécharger le QR code en PNG haute résolution (1024×1024) — 100% local.
+  // Récupère le SVG rendu par <QRCodeSVG> dans le DOM, le dessine à 1024×1024
+  // dans un canvas avec une marge blanche, puis exporte en PNG.
+  // Aucune dépendance à une API externe (compatible Railway, Vercel, Docker, etc.).
+  const downloadQrPng = async (slug: string) => {
+    try {
+      const svgEl = qrSvgRef.current?.querySelector('svg')
+      if (!svgEl) {
+        throw new Error('QR code non trouvé dans le DOM')
+      }
+
+      // Sérialiser le SVG en string + s'assurer qu'il a bien les xmlns
+      const svgString = new XMLSerializer().serializeToString(svgEl)
+      const svgWithXmlns = svgString.includes('xmlns=')
+        ? svgString
+        : svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')
+
+      const SIZE = 1024
+      const MARGIN = 32 // marge blanche autour du code (pour la lisibilité de scan)
+      const codeSize = SIZE - MARGIN * 2
+
+      const svgBlob = new Blob([svgWithXmlns], {
+        type: 'image/svg+xml;charset=utf-8',
+      })
+      const svgUrl = URL.createObjectURL(svgBlob)
+
+      await new Promise<void>((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          canvas.width = SIZE
+          canvas.height = SIZE
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            reject(new Error('Canvas non supporté'))
+            return
+          }
+          // Fond blanc
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, SIZE, SIZE)
+          // Dessiner le QR centré avec marge
+          ctx.drawImage(img, MARGIN, MARGIN, codeSize, codeSize)
+
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              reject(new Error('Échec de génération du PNG'))
+              return
+            }
+            const dlUrl = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = dlUrl
+            a.download = `qr-${slug}.png`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(dlUrl)
+            URL.revokeObjectURL(svgUrl)
+            resolve()
+          }, 'image/png')
+        }
+        img.onerror = () => {
+          URL.revokeObjectURL(svgUrl)
+          reject(new Error('Échec de rendu du SVG'))
+        }
+        // Important : charger en tant que data: URL n'est pas nécessaire,
+        // un Blob URL fonctionne et évite les soucis de CORS.
+        img.src = svgUrl
+      })
+
+      toast({ title: 'QR code téléchargé', description: `qr-${slug}.png` })
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Téléchargement impossible',
+        description: e instanceof Error ? e.message : 'Erreur inconnue',
+      })
+    }
   }
 
   // Écran de chargement pendant la vérification de session
@@ -725,15 +807,15 @@ export default function Home() {
           </DialogHeader>
           {qrSticker && (
             <div className="flex flex-col items-center py-4">
-              <div className="bg-white p-4 rounded-xl border border-zinc-200">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=8&data=${encodeURIComponent(
-                    getPublicUrl(qrSticker.slug)
-                  )}`}
-                  alt={`QR code ${qrSticker.slug}`}
-                  width={280}
-                  height={280}
-                  className="rounded"
+              <div ref={qrSvgRef} className="bg-white p-4 rounded-xl border border-zinc-200">
+                <QRCodeSVG
+                  value={getPublicUrl(qrSticker.slug)}
+                  size={280}
+                  level="M"
+                  marginSize={2}
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                  aria-label={`QR code ${qrSticker.slug}`}
                 />
               </div>
               <div className="mt-4 text-center w-full">
@@ -752,16 +834,14 @@ export default function Home() {
                   <Copy size={14} className="mr-1.5" />
                   Copier l&apos;URL
                 </Button>
-                <a
-                  href={`https://api.qrserver.com/v1/create-qr-code/?size=1024x1024&margin=8&data=${encodeURIComponent(
-                    getPublicUrl(qrSticker.slug)
-                  )}`}
-                  download={`qr-${qrSticker.slug}.png`}
-                  className="flex-1 inline-flex items-center justify-center rounded-md text-sm font-medium h-9 bg-zinc-900 text-white hover:bg-zinc-800 transition-colors"
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => downloadQrPng(qrSticker.slug)}
                 >
                   <Download size={14} className="mr-1.5" />
                   Télécharger PNG
-                </a>
+                </Button>
               </div>
             </div>
           )}
