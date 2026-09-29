@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { renderWaitingPage } from '@/lib/redirect-page'
+import { getEffectiveNetwork } from '@/lib/sticker-template'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,12 @@ export const dynamic = 'force-dynamic'
 //     via [BRAND]... Redirection vers la page du commerçant." et
 //     redirige automatiquement après ~600ms (meta refresh + JS fallback)
 //   - sinon → affiche une page d'attente avec message "sticker non configuré"
+//
+// Les couleurs de la page s'adaptent au réseau du sticker :
+//   - Google → fond clair, accents bleus
+//   - TikTok → fond noir, accents cyan/rose
+//   - Instagram → dégradé violet-rose-jaune
+//   - Aucun réseau → thème sombre générique avec accent emerald
 //
 // Le scanCount est incrémenté atomiquement via store.incr() (clé séparée scans:<slug>).
 //
@@ -42,11 +49,17 @@ export async function GET(
     })
   }
 
-  // Rendre la page HTML d'attente
+  // Déterminer le réseau effectif (custom si fourni, sinon auto-détecté depuis l'URL)
+  const effectiveNetwork = sticker
+    ? getEffectiveNetwork(sticker.targetUrl, sticker.customNetwork ?? null)
+    : null
+
+  // Rendre la page HTML d'attente (avec thème selon le réseau)
   const html = renderWaitingPage({
     targetUrl,
     slug,
     configured,
+    network: effectiveNetwork,
   })
 
   return new NextResponse(html, {

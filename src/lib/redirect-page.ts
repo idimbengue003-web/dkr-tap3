@@ -63,18 +63,145 @@ function getLogoImgHtml(opts: {
 }
 
 /**
+ * Thèmes par réseau social — couleurs officielles des marques.
+ * Utilisé pour colorer la page d'attente selon le réseau du sticker scanné.
+ */
+type NetworkTheme = {
+  /** Fond de page (CSS background) — peut être gradient ou couleur unie */
+  background: string
+  /** Couleur du texte principal (h1) */
+  textColor: string
+  /** Couleur secondaire (sous-titre, légendes) */
+  mutedColor: string
+  /** Couleur d'accent (badge, spinner, bouton) quand le sticker est configuré */
+  accentConfigured: string
+  /** Couleur d'accent quand le sticker n'est pas configuré */
+  accentUnconfigured: string
+  /** Version RGB de l'accent (sans alpha) pour générer des rgba() */
+  accentRgb: string
+  /** Couleur de fond du badge en haut */
+  badgeBg: string
+  /** Couleur du texte du badge */
+  badgeText: string
+  /** Couleur de bordure du badge */
+  badgeBorder: string
+  /** Couleur de fond du bouton primaire (texte dessus) */
+  buttonBg: string
+  /** Couleur du texte du bouton primaire */
+  buttonText: string
+  /** Couleur de fond de la zone target-box (info URL) */
+  targetBoxBg: string
+  /** Couleur de bordure de la zone target-box */
+  targetBoxBorder: string
+  /** Couleur du texte de la zone target-box */
+  targetBoxText: string
+}
+
+const NETWORK_THEMES: Record<'google' | 'tiktok' | 'instagram' | 'generic', NetworkTheme> = {
+  // GOOGLE : fond clair, texte sombre, accents bleu/rouge multicolores
+  google: {
+    background:
+      'radial-gradient(ellipse at top, #ffffff 0%, #f1f3f4 60%, #e8eaed 100%)',
+    textColor: '#202124',
+    mutedColor: '#5f6368',
+    accentConfigured: '#1a73e8', // Google Blue
+    accentUnconfigured: '#ea4335', // Google Red
+    accentRgb: '26, 115, 232',
+    badgeBg: 'rgba(26, 115, 232, 0.10)',
+    badgeText: '#1a73e8',
+    badgeBorder: 'rgba(26, 115, 232, 0.25)',
+    buttonBg: '#1a73e8',
+    buttonText: '#ffffff',
+    targetBoxBg: 'rgba(60, 64, 67, 0.04)',
+    targetBoxBorder: 'rgba(60, 64, 67, 0.10)',
+    targetBoxText: '#5f6368',
+  },
+
+  // TIKTOK : fond noir, texte blanc, accents cyan + rose
+  tiktok: {
+    background:
+      'radial-gradient(ellipse at top, #111111 0%, #050505 60%, #000000 100%)',
+    textColor: '#ffffff',
+    mutedColor: '#a1a1a1',
+    accentConfigured: '#25f4ee', // TikTok Cyan
+    accentUnconfigured: '#fe2c55', // TikTok Pink
+    accentRgb: '37, 244, 238',
+    badgeBg: 'rgba(37, 244, 238, 0.12)',
+    badgeText: '#25f4ee',
+    badgeBorder: 'rgba(37, 244, 238, 0.30)',
+    buttonBg: '#25f4ee',
+    buttonText: '#000000',
+    targetBoxBg: 'rgba(255, 255, 255, 0.05)',
+    targetBoxBorder: 'rgba(255, 255, 255, 0.10)',
+    targetBoxText: '#a1a1a1',
+  },
+
+  // INSTAGRAM : dégradé brand (jaune→rose→violet→bleu), texte blanc
+  instagram: {
+    background:
+      'radial-gradient(ellipse at top left, #feda75 0%, #d62976 40%, #962fbf 70%, #4f5bd5 100%)',
+    textColor: '#ffffff',
+    mutedColor: 'rgba(255, 255, 255, 0.85)',
+    accentConfigured: '#fdf497', // jaune clair Instagram
+    accentUnconfigured: '#fd5949', // rouge-orange Instagram
+    accentRgb: '253, 244, 151',
+    badgeBg: 'rgba(255, 255, 255, 0.18)',
+    badgeText: '#ffffff',
+    badgeBorder: 'rgba(255, 255, 255, 0.35)',
+    buttonBg: '#ffffff',
+    buttonText: '#962fbf',
+    targetBoxBg: 'rgba(255, 255, 255, 0.15)',
+    targetBoxBorder: 'rgba(255, 255, 255, 0.30)',
+    targetBoxText: 'rgba(255, 255, 255, 0.90)',
+  },
+
+  // GENERIC (pas de réseau détecté) : thème sombre existant, accent emerald
+  generic: {
+    background:
+      'radial-gradient(ellipse at top, #1f1f23 0%, #0a0a0a 60%, #000000 100%)',
+    textColor: '#fafafa',
+    mutedColor: '#a1a1a1',
+    accentConfigured: '#10b981', // emerald
+    accentUnconfigured: '#f59e0b', // amber
+    accentRgb: '16, 185, 129',
+    badgeBg: 'rgba(16, 185, 129, 0.12)',
+    badgeText: '#10b981',
+    badgeBorder: 'rgba(16, 185, 129, 0.25)',
+    buttonBg: '#10b981',
+    buttonText: '#000000',
+    targetBoxBg: 'rgba(255, 255, 255, 0.03)',
+    targetBoxBorder: 'rgba(255, 255, 255, 0.06)',
+    targetBoxText: '#71717a',
+  },
+}
+
+/**
+ * Détermine le thème à appliquer pour la page d'attente.
+ * @param network Le réseau détecté/forcé pour ce sticker
+ */
+function getNetworkTheme(
+  network: 'google' | 'tiktok' | 'instagram' | null
+): NetworkTheme {
+  return network ? NETWORK_THEMES[network] : NETWORK_THEMES.generic
+}
+
+/**
  * Génère l'HTML complet de la page d'attente.
  *
  * @param opts.targetUrl URL cible de redirection (null si sticker non configuré)
  * @param opts.slug slug du sticker (affiché pour diagnostic)
  * @param opts.configured true si l'URL cible existe et le sticker est actif
+ * @param opts.network Réseau social détecté (affecte les couleurs de la page)
  */
 export function renderWaitingPage(opts: {
   targetUrl: string | null
   slug: string
   configured: boolean
+  network?: 'google' | 'tiktok' | 'instagram' | null
 }): string {
   const { targetUrl, slug, configured } = opts
+  const network = opts.network ?? null
+  const theme = getNetworkTheme(network)
   const brandName = escapeHtml(getBrandName())
   const slugHtml = escapeHtml(slug)
   const targetUrlHtml = targetUrl ? escapeHtml(targetUrl) : ''
@@ -122,12 +249,19 @@ export function renderWaitingPage(opts: {
     </script>`
     : ''
 
-  // Icône et couleurs selon l'état
+  // Icône et couleurs selon l'état (selon le thème du réseau)
   const isConfigured = configured && !!targetUrl
-  const accent = isConfigured ? '#10b981' : '#f59e0b' // emerald-500 ou amber-500
-  const accentRgb = isConfigured ? '16, 185, 129' : '245, 158, 11'
-  const badgeBg = `rgba(${accentRgb}, 0.12)`
-  const spinnerBorder = `rgba(255,255,255,0.08)`
+  const accent = isConfigured
+    ? theme.accentConfigured
+    : theme.accentUnconfigured
+  const accentRgb = theme.accentRgb
+  const badgeBg = theme.badgeBg
+  const badgeText = theme.badgeText
+  const badgeBorder = theme.badgeBorder
+  const spinnerBorder =
+    theme.textColor === '#ffffff'
+      ? 'rgba(255,255,255,0.08)'
+      : 'rgba(0,0,0,0.08)'
   const spinnerAccent = accent
 
   // Icône : cadenas (configuré) ou horloge (en attente)
@@ -179,10 +313,8 @@ export function renderWaitingPage(opts: {
     html, body { height: 100%; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-      background:
-        radial-gradient(ellipse at top, #1f1f23 0%, #0a0a0a 60%),
-        #000;
-      color: #fafafa;
+      background: ${theme.background};
+      color: ${theme.textColor};
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -241,16 +373,16 @@ export function renderWaitingPage(opts: {
       font-weight: 600;
       letter-spacing: -0.02em;
       margin-bottom: 0.5rem;
-      color: #fafafa;
+      color: ${theme.textColor};
     }
     .subtitle {
-      color: #a1a1a1;
+      color: ${theme.mutedColor};
       font-size: 0.95rem;
       margin-bottom: 0.4rem;
     }
-    .subtitle strong { color: #d4d4d8; font-weight: 600; }
+    .subtitle strong { color: ${theme.textColor}; font-weight: 600; }
     .body-msg {
-      color: #71717a;
+      color: ${theme.mutedColor};
       font-size: 0.9rem;
       line-height: 1.5;
       max-width: 22rem;
@@ -259,8 +391,8 @@ export function renderWaitingPage(opts: {
 
     .target-box, .slug-box {
       padding: 0.6rem 0.9rem;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: ${theme.targetBoxBg};
+      border: 1px solid ${theme.targetBoxBorder};
       border-radius: 0.5rem;
       margin-bottom: 1rem;
     }
@@ -269,21 +401,21 @@ export function renderWaitingPage(opts: {
       font-size: 0.65rem;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: #52525b;
+      color: ${theme.mutedColor};
       margin-bottom: 0.2rem;
       font-weight: 600;
     }
     .target-url {
       font-family: ui-monospace, "SF Mono", Menlo, monospace;
       font-size: 0.75rem;
-      color: #a1a1a1;
+      color: ${theme.targetBoxText};
       word-break: break-all;
       line-height: 1.4;
     }
     .slug-value {
       font-family: ui-monospace, "SF Mono", Menlo, monospace;
       font-size: 0.8rem;
-      color: #d4d4d8;
+      color: ${theme.textColor};
     }
 
     .btn-primary {
@@ -291,8 +423,8 @@ export function renderWaitingPage(opts: {
       align-items: center;
       gap: 0.5rem;
       padding: 0.65rem 1.25rem;
-      background: ${accent};
-      color: #000;
+      background: ${theme.buttonBg};
+      color: ${theme.buttonText};
       text-decoration: none;
       border-radius: 0.5rem;
       font-weight: 600;
@@ -309,11 +441,11 @@ export function renderWaitingPage(opts: {
     .footer {
       margin-top: 3rem;
       padding-top: 1.25rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      border-top: 1px solid ${theme.targetBoxBorder};
       font-size: 0.72rem;
-      color: #52525b;
+      color: ${theme.mutedColor};
     }
-    .footer strong { color: #71717a; font-weight: 500; }
+    .footer strong { color: ${theme.textColor}; font-weight: 500; }
     .footer-logo {
       display: inline-block;
       vertical-align: middle;
@@ -331,14 +463,14 @@ export function renderWaitingPage(opts: {
     }
     .brand-logo {
       display: block;
-      filter: drop-shadow(0 4px 16px rgba(16, 185, 129, 0.15));
+      filter: drop-shadow(0 4px 16px rgba(${accentRgb}, 0.15));
     }
     .brand-name {
       font-size: 0.78rem;
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: #71717a;
+      color: ${theme.mutedColor};
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
