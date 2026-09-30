@@ -102,7 +102,10 @@ export const db = {
     await store.set(`sticker:${input.slug}`, sticker)
     await store.set(`stickerId:${sticker.id}`, input.slug)
     // ZSET par createdAt pour pouvoir lister par ordre desc rapidement
-    await store.zadd('stickers:by_created', Date.parse(now), input.slug)
+    // ⚠️ Format @vercel/kv : object form { [member]: score } — la forme
+    // positionnelle (score, member) ne marche PAS en production @vercel/kv
+    // (la lib vérifie `'score' in arg` qui échoue sur un number).
+    await store.zadd('stickers:by_created', { [input.slug]: Date.parse(now) })
 
     return { ...sticker, scanCount: 0 }
   },
