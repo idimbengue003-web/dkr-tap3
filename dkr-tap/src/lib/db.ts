@@ -92,7 +92,7 @@ export const db = {
     await store.set(`sticker:${input.slug}`, sticker)
     await store.set(`stickerId:${sticker.id}`, input.slug)
     // ZSET par createdAt pour pouvoir lister par ordre desc rapidement
-    await store.zadd('stickers:by_created', Date.parse(now), input.slug)
+    await store.zadd('stickers:by_created', { [input.slug]: Date.parse(now) })
 
     return { ...sticker, scanCount: 0 }
   },
