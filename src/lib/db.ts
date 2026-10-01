@@ -242,17 +242,44 @@ export const db = {
     const slug = await store.get<string>(`stickerId:${id}`)
     if (!slug) return false
 
-    // Supprimer sticker, mapping id→slug, compteur de scans
+    // Supprimer sticker, mapping id→slug, compteur de scans, image uploadée
     await store.del(
       `sticker:${slug}`,
       `stickerId:${id}`,
-      `scans:${slug}`
+      `scans:${slug}`,
+      `stickerImage:${slug}`
     )
     // Retirer le slug de la liste indexée
     const list = (await store.get<string[]>('stickers:list')) || []
     const filtered = list.filter((s) => s !== slug)
     await store.set('stickers:list', filtered)
     return true
+  },
+
+  /**
+   * Récupère l'image (data URL base64) uploadée pour un sticker.
+   * Retourne null si aucune image n'est stockée.
+   * Stockée dans une clé séparée `stickerImage:<slug>` pour ne pas
+   * faire gonfler l'objet sticker principal (qui reste petit pour le listing).
+   */
+  async getImage(slug: string): Promise<string | null> {
+    return store.get<string>(`stickerImage:${slug}`)
+  },
+
+  /**
+   * Stocke l'image (data URL base64) pour un sticker.
+   * @param slug slug du sticker
+   * @param dataUrl data URL complète : "data:image/png;base64,..." ou "data:image/jpeg;base64,..."
+   */
+  async setImage(slug: string, dataUrl: string): Promise<void> {
+    await store.set(`stickerImage:${slug}`, dataUrl)
+  },
+
+  /**
+   * Supprime l'image d'un sticker.
+   */
+  async deleteImage(slug: string): Promise<void> {
+    await store.del(`stickerImage:${slug}`)
   },
 
   /**

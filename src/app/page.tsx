@@ -120,6 +120,96 @@ const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'ScanBridge'
 const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/scanbridge-logo.svg'
 const BRAND_PHONE = process.env.NEXT_PUBLIC_BRAND_PHONE || ''
 
+// Helper pour charger une Image depuis une URL (Promise-based).
+// Utilisé par downloadStickerPng pour charger l'image uploadée + le SVG du QR.
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error(`Échec de chargement de l'image: ${src.slice(0, 50)}...`))
+    img.src = src
+  })
+}
+
+/**
+ * Lit un fichier image (File) et le convertit en data URL base64.
+ * Redimensionne si trop grand (> 1024px sur le plus long côté) pour limiter la taille.
+ * Compresse en JPEG qualité 0.85 (sauf si PNG avec transparence — on garde PNG).
+ *
+ * @returns data URL string prêt à être envoyé à l'API
+ */
+async function fileToDataUrl(
+  file: File,
+  maxSize = 1024
+): Promise<{ dataUrl: string; contentType: string; width: number; height: number }> {
+  // Vérifier le type
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Le fichier doit être une image (PNG, JPG, ou WebP).')
+  }
+  const allowedTypes = ['image/png', 'image/jpeg', 'image/webp']
+  if (!allowedTypes.includes(file.type)) {
+    throw new Error(`Format non supporté : ${file.type}. Accepté : PNG, JPG, WebP.`)
+  }
+
+  // Vérifier la taille brute (max 2MB avant redimensionnement)
+  if (file.size > 2 * 1024 * 1024) {
+    throw new Error(
+      `Fichier trop volumineux (${Math.round(file.size / 1024)} KB). Maximum 2 MB.`
+    )
+  }
+
+  // Lire le fichier en data URL
+  const fileDataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(new Error('Lecture du fichier impossible.'))
+    reader.readAsDataURL(file)
+  })
+
+  // Charger en Image pour mesurer les dimensions
+  const img = await loadImage(fileDataUrl)
+  let { naturalWidth: w, naturalHeight: h } = img
+
+  // Redimensionner si trop grand (en gardant le ratio)
+  let needsResize = false
+  if (Math.max(w, h) > maxSize) {
+    const ratio = maxSize / Math.max(w, h)
+    w = Math.round(w * ratio)
+    h = Math.round(h * ratio)
+    needsResize = true
+  }
+
+  // Si pas de redimensionnement nécessaire, renvoyer le data URL original
+  if (!needsResize) {
+    return {
+      dataUrl: fileDataUrl,
+      contentType: file.type,
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+    }
+  }
+
+  // Dessiner sur canvas à la nouvelle taille
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas non supporté.')
+  ctx.drawImage(img, 0, 0, w, h)
+
+  // Exporter en data URL (PNG pour préserver la transparence, sinon JPEG pour la taille)
+  const outType = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
+  const quality = outType === 'image/jpeg' ? 0.85 : undefined
+  const newDataUrl = canvas.toDataURL(outType, quality)
+
+  return {
+    dataUrl: newDataUrl,
+    contentType: outType,
+    width: w,
+    height: h,
+  }
+}
+
 export default function Home() {
   const router = useRouter()
   const { toast } = useToast()
@@ -147,6 +237,9 @@ export default function Home() {
   const [form, setForm] = useState<StickerForm>(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [qrSticker, setQrSticker] = useState<Sticker | null>(null)
+  // Image uploadée pour le sticker en cours d'aperçu (data URL base64)
+  const [stickerImageDataUrl, setStickerImageDataUrl] = useState<string | null>(null)
+  const [imageLoading, setImageLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   // Ref sur le conteneur du QR SVG pour permettre le download PNG local
   const qrSvgRef = useRef<HTMLDivElement>(null)
@@ -468,10 +561,57 @@ export default function Home() {
     }
   }
 
-  // Ouvrir modal QR
-  const openQr = (s: Sticker) => {
+  // Ouvrir modal QR + charger l'image uploadée (si elle existe)
+  const openQr = async (s: Sticker) => {
     setQrSticker(s)
+    setStickerImageDataUrl(null)
     setQrOpen(true)
+
+    // Tenter de charger l'image depuis l'API (404 si aucune image)
+    try {
+      const res = await fetch(`/api/stickers/${s.id}/image`, { cache: 'no-store' })
+      if (res.ok) {
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        setStickerImageDataUrl(url)
+      }
+    } catch {
+      // Silencieux : imageLoading juste pour l'UI
+    }
+  }
+
+  // Uploader une image pour le sticker en cours
+  const handleImageUpload = async (file: File) => {
+    if (!qrSticker) return
+    setImageLoading(true)
+    try {
+      // 1. Convertir + redimensionner côté client
+      const { dataUrl, width, height } = await fileToDataUrl(file)
+      // 2. Envoyer à l'API
+      const res = await fetch(`/api/stickers/${qrSticker.id}/image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Erreur (${res.status})`)
+      }
+      // 3. Mettre à jour le preview local
+      setStickerImageDataUrl(dataUrl)
+      toast({
+        title: 'Image importée',
+        description: `${width}×${height}px — prête pour le download`,
+      })
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Import impossible',
+        description: e instanceof Error ? e.message : 'Erreur inconnue',
+      })
+    } finally {
+      setImageLoading(false)
+    }
   }
 
   // Ouvrir l'URL cible dans un nouvel onglet
@@ -479,88 +619,103 @@ export default function Home() {
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
-  // Télécharger le sticker complet (10×10 cm @ 300 DPI = 1181×1181 px).
-  // Récupère le SVG du QR depuis le DOM, l'injecte dans le template du sticker,
-  // convertit le SVG final en PNG via canvas (vectoriel → pas de pixelisation).
-  // Aucune dépendance à une API externe (compatible Railway, Vercel, Docker, etc.).
+  // Télécharger le sticker : compose l'image uploadée par l'utilisateur + un QR code overlay.
+  // Le QR est placé en bas-droite, taille = 25% du min(width, height) de l'image.
+  // Si aucune image n'est uploadée, on affiche une erreur demandant d'uploader un design.
   const downloadStickerPng = async (sticker: Sticker) => {
     try {
+      // 1. Charger l'image uploadée
+      const imgResponse = await fetch(`/api/stickers/${sticker.id}/image`)
+      if (!imgResponse.ok) {
+        throw new Error(
+          imgResponse.status === 404
+            ? 'Aucun design uploadé. Importe d\'abord une image depuis le bouton ci-dessus.'
+            : `Erreur chargement image (${imgResponse.status})`
+        )
+      }
+      const imgBlob = await imgResponse.blob()
+      const imgUrl = URL.createObjectURL(imgBlob)
+
+      // 2. Récupérer le SVG du QR depuis le DOM (rendu par <QRCodeSVG> caché)
       const svgEl = qrSvgRef.current?.querySelector('svg')
       if (!svgEl) {
         throw new Error('QR code non trouvé dans le DOM')
       }
-
-      // Sérialiser le SVG du QR
       const qrSvgString = new XMLSerializer().serializeToString(svgEl)
-
-      // Réseau effectif (custom si fourni, sinon auto-détecté)
-      const network: Network = getEffectiveNetwork(
-        sticker.targetUrl,
-        sticker.customNetwork ?? null
-      )
-
-      // Générer le SVG complet du sticker
-      const stickerSvg = renderStickerSvg({
-        qrSvgString,
-        network,
-        publicUrl: getPublicUrl(sticker.slug),
-        brandName: BRAND_NAME,
-        brandLogoUrl: BRAND_LOGO_URL,
-        brandPhone: BRAND_PHONE,
-        baseUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
-        customActionText: sticker.customActionText ?? null,
-      })
-
-      // Convertir SVG → Image → Canvas → PNG
-      const stickerBlob = new Blob([stickerSvg], {
+      const qrSvgWithXmlns = qrSvgString.includes('xmlns=')
+        ? qrSvgString
+        : qrSvgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')
+      const qrBlob = new Blob([qrSvgWithXmlns], {
         type: 'image/svg+xml;charset=utf-8',
       })
-      const stickerUrl = URL.createObjectURL(stickerBlob)
+      const qrUrl = URL.createObjectURL(qrBlob)
 
-      const STICKER_SIZE = 1181 // 10 cm @ 300 DPI
+      // 3. Charger les 2 images en parallèle
+      const [bgImg, qrImg] = await Promise.all([
+        loadImage(imgUrl),
+        loadImage(qrUrl),
+      ])
 
-      await new Promise<void>((resolve, reject) => {
-        const img = new Image()
-        img.onload = () => {
-          const canvas = document.createElement('canvas')
-          canvas.width = STICKER_SIZE
-          canvas.height = STICKER_SIZE
-          const ctx = canvas.getContext('2d')
-          if (!ctx) {
-            reject(new Error('Canvas non supporté'))
-            return
-          }
-          // Dessiner le sticker à pleine résolution
-          ctx.drawImage(img, 0, 0, STICKER_SIZE, STICKER_SIZE)
+      // 4. Composer sur canvas (taille = résolution naturelle de l'image bg)
+      const canvas = document.createElement('canvas')
+      canvas.width = bgImg.naturalWidth
+      canvas.height = bgImg.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        throw new Error('Canvas non supporté')
+      }
+      // Dessiner l'image de fond (rendu à sa résolution naturelle)
+      ctx.drawImage(bgImg, 0, 0)
 
-          canvas.toBlob((blob) => {
-            if (!blob) {
-              reject(new Error('Échec de génération du PNG'))
-              return
-            }
-            const dlUrl = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = dlUrl
-            a.download = `sticker-${sticker.slug}.png`
-            document.body.appendChild(a)
-            a.click()
-            document.body.removeChild(a)
-            URL.revokeObjectURL(dlUrl)
-            URL.revokeObjectURL(stickerUrl)
-            resolve()
-          }, 'image/png')
+      // 5. Dessiner le QR code en bas-droite
+      //    Taille : 25% du min(width, height) de l'image, mais min 200px et max 600px
+      //    Marge : 5% de min(width, height) depuis les bords
+      const minDim = Math.min(bgImg.naturalWidth, bgImg.naturalHeight)
+      const margin = Math.round(minDim * 0.05)
+      let qrSize = Math.round(minDim * 0.25)
+      qrSize = Math.max(200, Math.min(600, qrSize))
+      const qrX = bgImg.naturalWidth - qrSize - margin
+      const qrY = bgImg.naturalHeight - qrSize - margin
+
+      // Fond blanc derrière le QR (pour la lisibilité de scan si l'image de fond est sombre)
+      const padding = Math.round(qrSize * 0.08)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(
+        qrX - padding,
+        qrY - padding,
+        qrSize + padding * 2,
+        qrSize + padding * 2
+      )
+      // Dessiner le QR
+      ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize)
+
+      // 6. Libérer les Object URLs
+      URL.revokeObjectURL(imgUrl)
+      URL.revokeObjectURL(qrUrl)
+
+      // 7. Télécharger le PNG
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          toast({
+            variant: 'destructive',
+            title: 'Téléchargement impossible',
+            description: 'Échec de génération du PNG',
+          })
+          return
         }
-        img.onerror = () => {
-          URL.revokeObjectURL(stickerUrl)
-          reject(new Error('Échec de rendu du SVG'))
-        }
-        img.src = stickerUrl
-      })
-
-      toast({
-        title: 'Sticker téléchargé',
-        description: `sticker-${sticker.slug}.png (10×10 cm, 300 DPI)`,
-      })
+        const dlUrl = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = dlUrl
+        a.download = `sticker-${sticker.slug}.png`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(dlUrl)
+        toast({
+          title: 'Sticker téléchargé',
+          description: `sticker-${sticker.slug}.png`,
+        })
+      }, 'image/png')
     } catch (e) {
       toast({
         variant: 'destructive',
@@ -1020,13 +1175,13 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal QR code → Sticker complet */}
+      {/* Modal : import image + preview avec QR overlay + download */}
       <Dialog open={qrOpen} onOpenChange={setQrOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Aperçu du sticker</DialogTitle>
+            <DialogTitle>Design du sticker</DialogTitle>
             <DialogDescription>
-              Format 10×10 cm prêt à imprimer. Le PNG exporté est en 300 DPI (1181×1181 px).
+              Importe ton propre design. Le QR code sera ajouté en bas-droite du sticker automatiquement.
             </DialogDescription>
           </DialogHeader>
           {qrSticker && (
@@ -1048,35 +1203,73 @@ export default function Home() {
                 />
               </div>
 
-              {/* Preview du sticker complet (rendu via renderStickerSvg) */}
-              <StickerPreview
-                sticker={qrSticker}
-                publicUrl={getPublicUrl(qrSticker.slug)}
-                qrRef={qrSvgRef}
-              />
-
-              {/* Badge réseau détecté */}
-              {(() => {
-                const net = detectNetwork(qrSticker.targetUrl)
-                return (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500">
-                    <span>Réseau détecté :</span>
-                    {net ? (
-                      <span
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
-                        style={{
-                          backgroundColor: `${NETWORKS[net].accent}15`,
-                          color: NETWORKS[net].accent,
-                        }}
-                      >
-                        {net}
-                      </span>
-                    ) : (
-                      <span className="text-zinc-400">Aucun (générique)</span>
-                    )}
+              {/* Zone preview : image uploadée + QR overlay (rendu live en CSS) */}
+              <div className="relative w-full max-w-[320px] mx-auto bg-zinc-100 rounded-xl overflow-hidden border border-zinc-200 aspect-square">
+                {stickerImageDataUrl ? (
+                  <>
+                    {/* Image de fond */}
+                    <img
+                      src={stickerImageDataUrl}
+                      alt="Design du sticker"
+                      className="absolute inset-0 w-full h-full object-contain"
+                    />
+                    {/* QR overlay (simulé en bas-droite) */}
+                    <div className="absolute bottom-[5%] right-[5%] bg-white p-1 rounded shadow-md">
+                      <QRCodeSVG
+                        value={getPublicUrl(qrSticker.slug)}
+                        size={64}
+                        level="M"
+                        marginSize={1}
+                        bgColor="#ffffff"
+                        fgColor="#000000"
+                      />
+                    </div>
+                  </>
+                ) : imageLoading ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-400">
+                    <Loader2 size={24} className="animate-spin mb-2" />
+                    <p className="text-xs">Chargement...</p>
                   </div>
-                )
-              })()}
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-400 p-4 text-center">
+                    <StickyNote size={32} className="mb-2 opacity-40" />
+                    <p className="text-xs">
+                      Aucun design importé.<br/>
+                      Importe ton image ci-dessous.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Bouton upload */}
+              <div className="mt-3 w-full">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  id="sticker-image-upload"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) handleImageUpload(f)
+                    e.target.value = '' // permet de re-uploader le même fichier
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={imageLoading}
+                  onClick={() => document.getElementById('sticker-image-upload')?.click()}
+                >
+                  {imageLoading ? (
+                    <Loader2 size={14} className="mr-1.5 animate-spin" />
+                  ) : null}
+                  {stickerImageDataUrl ? 'Remplacer l\'image' : 'Importer mon design'}
+                </Button>
+                <p className="text-[10px] text-zinc-400 text-center mt-1">
+                  PNG, JPG ou WebP — max 2 MB (redimensionné si trop grand)
+                </p>
+              </div>
 
               {/* URL publique (info) */}
               <div className="mt-3 text-center w-full">
@@ -1100,10 +1293,11 @@ export default function Home() {
                 <Button
                   size="sm"
                   className="flex-1"
+                  disabled={!stickerImageDataUrl}
                   onClick={() => downloadStickerPng(qrSticker)}
                 >
                   <Download size={14} className="mr-1.5" />
-                  Télécharger le sticker
+                  Télécharger
                 </Button>
               </div>
             </div>
