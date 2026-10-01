@@ -33,6 +33,12 @@ export type Sticker = {
   active: boolean
   createdAt: string // ISO string (sérialisable JSON)
   updatedAt: string
+  /** Texte d'action personnalisé affiché en haut du sticker.
+   *  Si null → utilise le texte par défaut du réseau détecté (ou "Scannez ce QR code"). */
+  customActionText?: string | null
+  /** Réseau forcé manuellement ('google' | 'tiktok' | 'instagram' | 'none').
+   *  Si null ou absent → auto-détecté depuis l'URL cible. */
+  customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
 }
 
 export type StickerInput = {
@@ -40,10 +46,12 @@ export type StickerInput = {
   label: string | null
   targetUrl: string | null
   active: boolean
+  customActionText?: string | null
+  customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
 }
 
 export type StickerUpdate = Partial<
-  Pick<Sticker, 'label' | 'targetUrl' | 'active'>
+  Pick<Sticker, 'label' | 'targetUrl' | 'active' | 'customActionText' | 'customNetwork'>
 >
 
 /* ---------------- Helpers ---------------- */
@@ -86,13 +94,21 @@ export const db = {
       active: input.active,
       createdAt: now,
       updatedAt: now,
+      customActionText: input.customActionText ?? null,
+      customNetwork: input.customNetwork ?? null,
     }
 
-    // Pipeline-like : set sticker + set id→slug mapping + zadd index
+    // Pipeline-like : set sticker + set id→slug mapping + index liste
     await store.set(`sticker:${input.slug}`, sticker)
     await store.set(`stickerId:${sticker.id}`, input.slug)
-    // ZSET par createdAt pour pouvoir lister par ordre desc rapidement
-    await store.zadd('stickers:by_created', { [input.slug]: Date.parse(now) })
+    // Index liste des slugs (most recent first) pour lister rapidement.
+    // ⚠️ On n'utilise PAS ZADD car @vercel/kv v3 a un bug sur la signature
+    // de zadd (TypeError "in operator" ou "wrong number of arguments").
+    // Liste JSON simple dans une clé unique — atomique pour notre usage.
+    const existingList = (await store.get<string[]>('stickers:list')) || []
+    const filtered = existingList.filter((s) => s !== input.slug) // évite les doublons
+    filtered.unshift(input.slug) // ajoute en tête (most recent first)
+    await store.set('stickers:list', filtered)
 
     return { ...sticker, scanCount: 0 }
   },
@@ -125,10 +141,8 @@ export const db = {
    * Liste tous les stickers triés par createdAt desc.
    */
   async listStickers(): Promise<Sticker[]> {
-    // Récupère tous les slugs triés par createdAt DESC
-    const slugs = await store.zrange<string>('stickers:by_created', 0, -1, {
-      rev: true,
-    })
+    // Récupère la liste des slugs (most recent first) — stockée dans une clé unique
+    const slugs = (await store.get<string[]>('stickers:list')) || []
     if (!slugs.length) return []
 
     // Batch fetch : stickers + scan counts en parallèle
@@ -142,7 +156,7 @@ export const db = {
     const result: Sticker[] = []
     for (let i = 0; i < slugs.length; i++) {
       const data = stickerDataList[i]
-      if (!data) continue // sticker supprimé mais toujours dans le ZSET (race)
+      if (!data) continue // sticker supprimé mais toujours dans la liste (race)
       result.push({
         ...data,
         scanCount: typeof scanCountList[i] === 'number' ? scanCountList[i]! : 0,
@@ -174,6 +188,12 @@ export const db = {
         ? { targetUrl: updates.targetUrl }
         : {}),
       ...(updates.active !== undefined ? { active: updates.active } : {}),
+      ...(updates.customActionText !== undefined
+        ? { customActionText: updates.customActionText }
+        : {}),
+      ...(updates.customNetwork !== undefined
+        ? { customNetwork: updates.customNetwork }
+        : {}),
       updatedAt: new Date().toISOString(),
     }
 
@@ -202,6 +222,12 @@ export const db = {
         ? { targetUrl: updates.targetUrl }
         : {}),
       ...(updates.active !== undefined ? { active: updates.active } : {}),
+      ...(updates.customActionText !== undefined
+        ? { customActionText: updates.customActionText }
+        : {}),
+      ...(updates.customNetwork !== undefined
+        ? { customNetwork: updates.customNetwork }
+        : {}),
       updatedAt: new Date().toISOString(),
     }
 
@@ -216,13 +242,16 @@ export const db = {
     const slug = await store.get<string>(`stickerId:${id}`)
     if (!slug) return false
 
-    // Supprimer sticker, mapping id→slug, compteur de scans, et entrée du ZSET
+    // Supprimer sticker, mapping id→slug, compteur de scans
     await store.del(
       `sticker:${slug}`,
       `stickerId:${id}`,
       `scans:${slug}`
     )
-    await store.zrem('stickers:by_created', slug)
+    // Retirer le slug de la liste indexée
+    const list = (await store.get<string[]>('stickers:list')) || []
+    const filtered = list.filter((s) => s !== slug)
+    await store.set('stickers:list', filtered)
     return true
   },
 
