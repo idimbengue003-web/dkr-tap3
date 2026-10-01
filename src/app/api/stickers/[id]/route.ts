@@ -16,7 +16,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { label, targetUrl, active, customActionText, customNetwork, qrPosition } = body
+    const { label, targetUrl, active, customActionText, customNetwork, qrPosition, qrSize, textOverlay } = body
 
     // Vérifier existence
     const existing = await db.getStickerById(id)
@@ -35,6 +35,13 @@ export async function PUT(
       customActionText?: string | null
       customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
       qrPosition?: { x: number; y: number }
+      qrSize?: number
+      textOverlay?: {
+        content: string
+        x: number
+        y: number
+        size: number
+      } | null
     } = {}
 
     if (label !== undefined) {
@@ -90,6 +97,44 @@ export async function PUT(
         data.qrPosition = { x: qrPosition.x, y: qrPosition.y }
       } else if (qrPosition === null) {
         data.qrPosition = { x: 0.85, y: 0.85 } // reset au défaut
+      }
+    }
+
+    // Valider qrSize : nombre entre 0.1 et 0.5
+    if (qrSize !== undefined) {
+      if (qrSize === null) {
+        data.qrSize = 0.25 // reset au défaut
+      } else if (
+        typeof qrSize === 'number' &&
+        qrSize >= 0.1 &&
+        qrSize <= 0.5
+      ) {
+        data.qrSize = qrSize
+      }
+    }
+
+    // Valider textOverlay : objet { content, x, y, size }
+    if (textOverlay !== undefined) {
+      if (textOverlay === null) {
+        data.textOverlay = null // désactive le texte
+      } else if (
+        textOverlay &&
+        typeof textOverlay === 'object' &&
+        typeof textOverlay.content === 'string' &&
+        textOverlay.content.trim() &&
+        typeof textOverlay.x === 'number' &&
+        typeof textOverlay.y === 'number' &&
+        typeof textOverlay.size === 'number' &&
+        textOverlay.x >= 0 && textOverlay.x <= 1 &&
+        textOverlay.y >= 0 && textOverlay.y <= 1 &&
+        textOverlay.size >= 0.02 && textOverlay.size <= 0.15
+      ) {
+        data.textOverlay = {
+          content: textOverlay.content.trim().slice(0, 200), // max 200 chars
+          x: textOverlay.x,
+          y: textOverlay.y,
+          size: textOverlay.size,
+        }
       }
     }
 

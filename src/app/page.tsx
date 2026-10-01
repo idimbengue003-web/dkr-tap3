@@ -71,6 +71,15 @@ type Sticker = {
   /** Position du QR code sur l'image (centrage en % de 0 à 1).
    *  Default: { x: 0.85, y: 0.85 } (bas-droite). */
   qrPosition?: { x: number; y: number }
+  /** Taille du QR code en % du min(w, h) de l'image (0.1 à 0.5, default 0.25). */
+  qrSize?: number
+  /** Texte optionnel superposé à l'image. */
+  textOverlay?: {
+    content: string
+    x: number
+    y: number
+    size: number
+  } | null
 }
 
 type StickerForm = {
@@ -245,7 +254,17 @@ export default function Home() {
   const [imageLoading, setImageLoading] = useState(false)
   // Position draggable du QR code (en %, 0-1) — utilisée pour le preview et le download
   const [qrPosition, setQrPosition] = useState<{ x: number; y: number }>({ x: 0.85, y: 0.85 })
+  // Taille du QR code en % du min(w, h) — utilisée pour le preview et le download
+  const [qrSize, setQrSize] = useState<number>(0.25)
+  // Texte optionnel superposé à l'image (draggable comme le QR)
+  const [textOverlay, setTextOverlay] = useState<{
+    content: string
+    x: number
+    y: number
+    size: number
+  } | null>(null)
   const [isDraggingQr, setIsDraggingQr] = useState(false)
+  const [isDraggingText, setIsDraggingText] = useState(false)
   const previewContainerRef = useRef<HTMLDivElement>(null)
   // Dimensions naturelles de l'image (pour aspect-ratio du container)
   const [imageDimensions, setImageDimensions] = useState<{ w: number; h: number } | null>(null)
@@ -570,13 +589,15 @@ export default function Home() {
     }
   }
 
-  // Ouvrir modal QR + charger l'image uploadée (si elle existe) + qrPosition sauvegardée
+  // Ouvrir modal QR + charger l'image uploadée (si elle existe) + qrPosition/qrSize/textOverlay sauvegardés
   const openQr = async (s: Sticker) => {
     setQrSticker(s)
     setStickerImageDataUrl(null)
     setImageDimensions(null)
-    // Charger la position QR sauvegardée (ou défaut bas-droite)
+    // Charger la position/taille QR + textOverlay sauvegardés (ou défauts)
     setQrPosition(s.qrPosition ?? { x: 0.85, y: 0.85 })
+    setQrSize(s.qrSize ?? 0.25)
+    setTextOverlay(s.textOverlay ?? null)
     setQrOpen(true)
 
     // Tenter de charger l'image depuis l'API (404 si aucune image)
@@ -683,21 +704,93 @@ export default function Home() {
       // ignore si l'element n'a plus le pointer capture
     }
     // Sauvegarder la position via API (silencieux)
-    void saveQrPosition(qrPosition)
+    void saveStickerField({ qrPosition })
   }
 
-  // Sauvegarder la position QR sur le sticker (debounced non, on sauve à chaque drag end)
-  const saveQrPosition = async (pos: { x: number; y: number }) => {
+  // Handler drag-and-drop du TEXTE overlay (pointer events)
+  const handleTextPointerDown = (e: React.PointerEvent) => {
+    setIsDraggingText(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+    e.preventDefault()
+  }
+
+  const handleTextPointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingText || !previewContainerRef.current || !textOverlay) return
+    const rect = previewContainerRef.current.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width
+    const y = (e.clientY - rect.top) / rect.height
+    setTextOverlay({
+      ...textOverlay,
+      x: Math.max(0.05, Math.min(0.95, x)),
+      y: Math.max(0.05, Math.min(0.95, y)),
+    })
+  }
+
+  const handleTextPointerUp = (e: React.PointerEvent) => {
+    setIsDraggingText(false)
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+    // Sauvegarder la position/taille/contenu via API (silencieux)
+    void saveStickerField({ textOverlay })
+  }
+
+  // Generic save sticker field (qrPosition, qrSize, textOverlay) — silencieux
+  const saveStickerField = async (updates: Record<string, unknown>) => {
     if (!qrSticker) return
     try {
       await fetch(`/api/stickers/${qrSticker.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qrPosition: pos }),
+        body: JSON.stringify(updates),
       })
     } catch {
       // Silencieux : pas grave si la save échoue ponctuellement
     }
+  }
+
+  // Handler changement de la taille du QR (slider)
+  const handleQrSizeChange = (newSize: number) => {
+    setQrSize(newSize)
+    void saveStickerField({ qrSize: newSize })
+  }
+
+  // Handler changement de la taille du texte (slider)
+  const handleTextSizeChange = (newSize: number) => {
+    if (!textOverlay) return
+    const updated = { ...textOverlay, size: newSize }
+    setTextOverlay(updated)
+    void saveStickerField({ textOverlay: updated })
+  }
+
+  // Activer/désactiver le texte
+  const handleTextToggle = () => {
+    if (textOverlay) {
+      // Désactiver
+      setTextOverlay(null)
+      void saveStickerField({ textOverlay: null })
+    } else {
+      // Activer avec valeurs par défaut
+      const newOverlay = {
+        content: 'Scannez-moi !',
+        x: 0.5,
+        y: 0.15,
+        size: 0.06,
+      }
+      setTextOverlay(newOverlay)
+      void saveStickerField({ textOverlay: newOverlay })
+    }
+  }
+
+  // Modifier le contenu du texte
+  const handleTextContentChange = (content: string) => {
+    if (!textOverlay) return
+    const updated = { ...textOverlay, content }
+    setTextOverlay(updated)
+    // Save (debounced ideally, mais pour simplifier on save direct)
+    void saveStickerField({ textOverlay: updated })
   }
 
   // Ouvrir l'URL cible dans un nouvel onglet
@@ -708,7 +801,17 @@ export default function Home() {
   // Télécharger le sticker : compose l'image uploadée par l'utilisateur + un QR code overlay.
   // Le QR est placé en bas-droite, taille = 25% du min(width, height) de l'image.
   // Si aucune image n'est uploadée, on affiche une erreur demandant d'uploader un design.
-  const downloadStickerPng = async (sticker: Sticker) => {
+  const downloadStickerPng = async (
+    sticker: Sticker,
+    liveQrPosition: { x: number; y: number },
+    liveQrSize: number,
+    liveTextOverlay: {
+      content: string
+      x: number
+      y: number
+      size: number
+    } | null
+  ) => {
     try {
       // 1. Charger l'image uploadée
       const imgResponse = await fetch(`/api/stickers/${sticker.id}/image`)
@@ -755,12 +858,15 @@ export default function Home() {
 
       // 5. Dessiner le QR code à la position sauvegardée (ou bas-droite par défaut)
       //    Position = CENTRE du QR en % des dimensions de l'image.
-      //    Taille : 25% du min(width, height), entre 200px et 600px.
+      //    Taille : qrSize % du min(width, height), entre 200px et 800px.
       const minDim = Math.min(bgImg.naturalWidth, bgImg.naturalHeight)
-      let qrSize = Math.round(minDim * 0.25)
-      qrSize = Math.max(200, Math.min(600, qrSize))
-      // Position du CENTRE du QR (en px) à partir des pourcentages sauvegardés
-      const pos = sticker.qrPosition ?? { x: 0.85, y: 0.85 }
+      const clampedQrSize = Math.max(0.1, Math.min(0.5, liveQrSize ?? 0.25))
+      let qrSize = Math.round(minDim * clampedQrSize)
+      qrSize = Math.max(200, Math.min(800, qrSize))
+      // Position du CENTRE du QR (en px) à partir de la position LIVE passée en argument
+      // (la state qrPosition est mise à jour par le drag, contrairement à sticker.qrPosition
+      // qui est resté à la valeur initiale du chargement du modal)
+      const pos = liveQrPosition ?? { x: 0.85, y: 0.85 }
       const qrCenterX = pos.x * bgImg.naturalWidth
       const qrCenterY = pos.y * bgImg.naturalHeight
       const qrX = qrCenterX - qrSize / 2
@@ -777,6 +883,35 @@ export default function Home() {
       )
       // Dessiner le QR
       ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize)
+
+      // 6. Dessiner le texte overlay (si présent)
+      if (liveTextOverlay && liveTextOverlay.content.trim()) {
+        const fontSize = Math.round(minDim * liveTextOverlay.size)
+        ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        const textX = liveTextOverlay.x * bgImg.naturalWidth
+        const textY = liveTextOverlay.y * bgImg.naturalHeight
+        // Ombre portée pour la lisibilité sur fond clair ou foncé
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)'
+        ctx.shadowBlur = Math.round(fontSize * 0.15)
+        ctx.shadowOffsetX = 0
+        ctx.shadowOffsetY = Math.round(fontSize * 0.06)
+        ctx.fillStyle = '#ffffff'
+        // Support multi-ligne (split sur \n)
+        const lines = liveTextOverlay.content.split('\n')
+        const lineHeight = Math.round(fontSize * 1.2)
+        const totalHeight = lineHeight * lines.length
+        const startY = textY - totalHeight / 2 + fontSize / 2
+        lines.forEach((line, i) => {
+          ctx.fillText(line, textX, startY + i * lineHeight)
+        })
+        // Reset shadow
+        ctx.shadowColor = 'transparent'
+        ctx.shadowBlur = 0
+        ctx.shadowOffsetX = 0
+        ctx.shadowOffsetY = 0
+      }
 
       // 6. Libérer les Object URLs
       URL.revokeObjectURL(imgUrl)
@@ -1334,9 +1469,45 @@ export default function Home() {
                       />
                     </div>
                     {/* Indice drag */}
-                    {!isDraggingQr && (
+                    {!isDraggingQr && !isDraggingText && (
                       <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 text-white text-[10px] rounded-full pointer-events-none">
-                        ✋ Glisse le QR
+                        ✋ Glisse le QR ou le texte
+                      </div>
+                    )}
+                    {/* Texte overlay draggable (si activé) */}
+                    {textOverlay && textOverlay.content.trim() && (
+                      <div
+                        onPointerDown={handleTextPointerDown}
+                        onPointerMove={handleTextPointerMove}
+                        onPointerUp={handleTextPointerUp}
+                        className={`absolute cursor-move touch-none select-none ${isDraggingText ? 'cursor-grabbing ring-2 ring-emerald-400 rounded' : ''}`}
+                        style={{
+                          left: `${textOverlay.x * 100}%`,
+                          top: `${textOverlay.y * 100}%`,
+                          transform: 'translate(-50%, -50%)',
+                          touchAction: 'none',
+                        }}
+                      >
+                        <span
+                          className="inline-block text-white font-bold max-w-[280px]"
+                          style={{
+                            // taille fixe pour le preview modal — le rendu final
+                            // utilise la vraie taille via canvas (qui dépend de l'image)
+                            fontSize: '14px',
+                            lineHeight: 1.2,
+                            textShadow:
+                              '0 2px 6px rgba(0,0,0,0.7), 0 1px 2px rgba(0,0,0,0.9)',
+                          }}
+                        >
+                          {textOverlay.content.split('\n').map((line, i) => (
+                            <span
+                              key={i}
+                              style={{ display: 'block' }}
+                            >
+                              {line}
+                            </span>
+                          ))}
+                        </span>
                       </div>
                     )}
                   </>
@@ -1400,6 +1571,76 @@ export default function Home() {
                 </p>
               </div>
 
+              {/* Sliders + texte overlay (uniquement si une image est uploadée) */}
+              {stickerImageDataUrl && (
+                <div className="mt-3 w-full space-y-3 border-t border-zinc-100 pt-3">
+                  {/* Slider taille du QR */}
+                  <div>
+                    <Label className="text-xs text-zinc-600 mb-1.5 block">
+                      Taille du QR : {Math.round(qrSize * 100)}%
+                    </Label>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="0.5"
+                      step="0.01"
+                      value={qrSize}
+                      onChange={(e) =>
+                        handleQrSizeChange(parseFloat(e.target.value))
+                      }
+                      className="w-full accent-emerald-500"
+                    />
+                  </div>
+
+                  {/* Toggle texte overlay */}
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 p-2.5">
+                    <div>
+                      <Label className="text-sm font-medium">
+                        Texte sur l&apos;image
+                      </Label>
+                      <p className="text-[10px] text-zinc-500">
+                        Ajoute un message personnalisé (draggable)
+                      </p>
+                    </div>
+                    <Switch
+                      checked={!!textOverlay}
+                      onCheckedChange={handleTextToggle}
+                    />
+                  </div>
+
+                  {/* Input contenu + slider taille du texte (si activé) */}
+                  {textOverlay && (
+                    <div className="space-y-2 pl-2 border-l-2 border-emerald-200">
+                      <textarea
+                        placeholder="Ton message (ex: Scannez pour un avis ⭐)"
+                        value={textOverlay.content}
+                        onChange={(e) =>
+                          handleTextContentChange(e.target.value)
+                        }
+                        rows={2}
+                        className="w-full px-2 py-1.5 text-sm rounded border border-zinc-200 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      />
+                      <div>
+                        <Label className="text-[10px] text-zinc-600 mb-1 block">
+                          Taille du texte : {Math.round(textOverlay.size * 1000) / 10}%
+                        </Label>
+                        <input
+                          type="range"
+                          min="0.02"
+                          max="0.15"
+                          step="0.005"
+                          value={textOverlay.size}
+                          onChange={(e) =>
+                            handleTextSizeChange(parseFloat(e.target.value))
+                          }
+                          className="w-full accent-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Actions : copier URL (silencieux, sans afficher l'URL) + download */}
               <div className="mt-4 flex gap-2 w-full">
                 <Button
@@ -1415,7 +1656,9 @@ export default function Home() {
                   size="sm"
                   className="flex-1"
                   disabled={!stickerImageDataUrl}
-                  onClick={() => downloadStickerPng(qrSticker)}
+                  onClick={() =>
+                    downloadStickerPng(qrSticker, qrPosition, qrSize, textOverlay)
+                  }
                 >
                   <Download size={14} className="mr-1.5" />
                   Télécharger

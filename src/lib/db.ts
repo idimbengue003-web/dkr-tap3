@@ -43,6 +43,17 @@ export type Sticker = {
    *  Coordonnées du CENTRE du QR par rapport aux dimensions de l'image.
    *  Default: { x: 0.85, y: 0.85 } (bas-droite). */
   qrPosition?: { x: number; y: number }
+  /** Taille du QR code, en pourcentage (0.1 à 0.5) du min(width, height) de l'image.
+   *  Default: 0.25 (25%). */
+  qrSize?: number
+  /** Texte optionnel superposé à l'image (call-to-action, message, etc.).
+   *  Si null → pas de texte. */
+  textOverlay?: {
+    content: string
+    x: number // 0-1, position CENTRE du texte en %
+    y: number // 0-1
+    size: number // 0.02 à 0.15, taille en % du min(w, h)
+  } | null
 }
 
 export type StickerInput = {
@@ -53,12 +64,26 @@ export type StickerInput = {
   customActionText?: string | null
   customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
   qrPosition?: { x: number; y: number }
+  qrSize?: number
+  textOverlay?: {
+    content: string
+    x: number
+    y: number
+    size: number
+  } | null
 }
 
 export type StickerUpdate = Partial<
   Pick<
     Sticker,
-    'label' | 'targetUrl' | 'active' | 'customActionText' | 'customNetwork' | 'qrPosition'
+    | 'label'
+    | 'targetUrl'
+    | 'active'
+    | 'customActionText'
+    | 'customNetwork'
+    | 'qrPosition'
+    | 'qrSize'
+    | 'textOverlay'
   >
 >
 
@@ -105,6 +130,8 @@ export const db = {
       customActionText: input.customActionText ?? null,
       customNetwork: input.customNetwork ?? null,
       qrPosition: input.qrPosition ?? { x: 0.85, y: 0.85 }, // bas-droite par défaut
+      qrSize: input.qrSize ?? 0.25, // 25% du min(w, h) par défaut
+      textOverlay: input.textOverlay ?? null,
     }
 
     // Pipeline-like : set sticker + set id→slug mapping + index liste
@@ -206,6 +233,12 @@ export const db = {
       ...(updates.qrPosition !== undefined
         ? { qrPosition: updates.qrPosition }
         : {}),
+      ...(updates.qrSize !== undefined
+        ? { qrSize: updates.qrSize }
+        : {}),
+      ...(updates.textOverlay !== undefined
+        ? { textOverlay: updates.textOverlay }
+        : {}),
       updatedAt: new Date().toISOString(),
     }
 
@@ -242,6 +275,12 @@ export const db = {
         : {}),
       ...(updates.qrPosition !== undefined
         ? { qrPosition: updates.qrPosition }
+        : {}),
+      ...(updates.qrSize !== undefined
+        ? { qrSize: updates.qrSize }
+        : {}),
+      ...(updates.textOverlay !== undefined
+        ? { textOverlay: updates.textOverlay }
         : {}),
       updatedAt: new Date().toISOString(),
     }
