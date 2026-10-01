@@ -68,6 +68,9 @@ type Sticker = {
   updatedAt: string
   customActionText?: string | null
   customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
+  /** Position du QR code sur l'image (centrage en % de 0 à 1).
+   *  Default: { x: 0.85, y: 0.85 } (bas-droite). */
+  qrPosition?: { x: number; y: number }
 }
 
 type StickerForm = {
@@ -240,6 +243,12 @@ export default function Home() {
   // Image uploadée pour le sticker en cours d'aperçu (data URL base64)
   const [stickerImageDataUrl, setStickerImageDataUrl] = useState<string | null>(null)
   const [imageLoading, setImageLoading] = useState(false)
+  // Position draggable du QR code (en %, 0-1) — utilisée pour le preview et le download
+  const [qrPosition, setQrPosition] = useState<{ x: number; y: number }>({ x: 0.85, y: 0.85 })
+  const [isDraggingQr, setIsDraggingQr] = useState(false)
+  const previewContainerRef = useRef<HTMLDivElement>(null)
+  // Dimensions naturelles de l'image (pour aspect-ratio du container)
+  const [imageDimensions, setImageDimensions] = useState<{ w: number; h: number } | null>(null)
   const [saving, setSaving] = useState(false)
   // Ref sur le conteneur du QR SVG pour permettre le download PNG local
   const qrSvgRef = useRef<HTMLDivElement>(null)
@@ -561,10 +570,13 @@ export default function Home() {
     }
   }
 
-  // Ouvrir modal QR + charger l'image uploadée (si elle existe)
+  // Ouvrir modal QR + charger l'image uploadée (si elle existe) + qrPosition sauvegardée
   const openQr = async (s: Sticker) => {
     setQrSticker(s)
     setStickerImageDataUrl(null)
+    setImageDimensions(null)
+    // Charger la position QR sauvegardée (ou défaut bas-droite)
+    setQrPosition(s.qrPosition ?? { x: 0.85, y: 0.85 })
     setQrOpen(true)
 
     // Tenter de charger l'image depuis l'API (404 si aucune image)
@@ -574,6 +586,9 @@ export default function Home() {
         const blob = await res.blob()
         const url = URL.createObjectURL(blob)
         setStickerImageDataUrl(url)
+        // Charger les dimensions naturelles de l'image pour l'aspect-ratio
+        const img = await loadImage(url)
+        setImageDimensions({ w: img.naturalWidth, h: img.naturalHeight })
       }
     } catch {
       // Silencieux : imageLoading juste pour l'UI
@@ -597,11 +612,12 @@ export default function Home() {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || `Erreur (${res.status})`)
       }
-      // 3. Mettre à jour le preview local
+      // 3. Mettre à jour le preview local + dimensions
       setStickerImageDataUrl(dataUrl)
+      setImageDimensions({ w: width, h: height })
       toast({
         title: 'Image importée',
-        description: `${width}×${height}px — prête pour le download`,
+        description: `${width}×${height}px — déplace le QR où tu veux`,
       })
     } catch (e) {
       toast({
@@ -611,6 +627,76 @@ export default function Home() {
       })
     } finally {
       setImageLoading(false)
+    }
+  }
+
+  // Supprimer l'image uploadée pour le sticker en cours
+  const handleImageDelete = async () => {
+    if (!qrSticker) return
+    setImageLoading(true)
+    try {
+      const res = await fetch(`/api/stickers/${qrSticker.id}/image`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Erreur (${res.status})`)
+      }
+      setStickerImageDataUrl(null)
+      setImageDimensions(null)
+      toast({ title: 'Image supprimée' })
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Suppression impossible',
+        description: e instanceof Error ? e.message : 'Erreur inconnue',
+      })
+    } finally {
+      setImageLoading(false)
+    }
+  }
+
+  // Handler drag-and-drop du QR overlay (pointer events = mouse + touch)
+  const handleQrPointerDown = (e: React.PointerEvent) => {
+    setIsDraggingQr(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+    e.preventDefault() // empêche le scroll mobile pendant le drag
+  }
+
+  const handleQrPointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingQr || !previewContainerRef.current) return
+    const rect = previewContainerRef.current.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width
+    const y = (e.clientY - rect.top) / rect.height
+    // Clamp [0.05, 0.95] pour éviter que le QR sorte complètement de l'image
+    setQrPosition({
+      x: Math.max(0.05, Math.min(0.95, x)),
+      y: Math.max(0.05, Math.min(0.95, y)),
+    })
+  }
+
+  const handleQrPointerUp = (e: React.PointerEvent) => {
+    setIsDraggingQr(false)
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      // ignore si l'element n'a plus le pointer capture
+    }
+    // Sauvegarder la position via API (silencieux)
+    void saveQrPosition(qrPosition)
+  }
+
+  // Sauvegarder la position QR sur le sticker (debounced non, on sauve à chaque drag end)
+  const saveQrPosition = async (pos: { x: number; y: number }) => {
+    if (!qrSticker) return
+    try {
+      await fetch(`/api/stickers/${qrSticker.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qrPosition: pos }),
+      })
+    } catch {
+      // Silencieux : pas grave si la save échoue ponctuellement
     }
   }
 
@@ -667,15 +753,18 @@ export default function Home() {
       // Dessiner l'image de fond (rendu à sa résolution naturelle)
       ctx.drawImage(bgImg, 0, 0)
 
-      // 5. Dessiner le QR code en bas-droite
-      //    Taille : 25% du min(width, height) de l'image, mais min 200px et max 600px
-      //    Marge : 5% de min(width, height) depuis les bords
+      // 5. Dessiner le QR code à la position sauvegardée (ou bas-droite par défaut)
+      //    Position = CENTRE du QR en % des dimensions de l'image.
+      //    Taille : 25% du min(width, height), entre 200px et 600px.
       const minDim = Math.min(bgImg.naturalWidth, bgImg.naturalHeight)
-      const margin = Math.round(minDim * 0.05)
       let qrSize = Math.round(minDim * 0.25)
       qrSize = Math.max(200, Math.min(600, qrSize))
-      const qrX = bgImg.naturalWidth - qrSize - margin
-      const qrY = bgImg.naturalHeight - qrSize - margin
+      // Position du CENTRE du QR (en px) à partir des pourcentages sauvegardés
+      const pos = sticker.qrPosition ?? { x: 0.85, y: 0.85 }
+      const qrCenterX = pos.x * bgImg.naturalWidth
+      const qrCenterY = pos.y * bgImg.naturalHeight
+      const qrX = qrCenterX - qrSize / 2
+      const qrY = qrCenterY - qrSize / 2
 
       // Fond blanc derrière le QR (pour la lisibilité de scan si l'image de fond est sombre)
       const padding = Math.round(qrSize * 0.08)
@@ -1175,13 +1264,13 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal : import image + preview avec QR overlay + download */}
+      {/* Modal : import image + preview avec QR overlay DRAGGABLE + download */}
       <Dialog open={qrOpen} onOpenChange={setQrOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Design du sticker</DialogTitle>
             <DialogDescription>
-              Importe ton propre design. Le QR code sera ajouté en bas-droite du sticker automatiquement.
+              Importe ton propre design. Le QR code est déplaçable sur l&apos;image — glisse-le où tu veux.
             </DialogDescription>
           </DialogHeader>
           {qrSticker && (
@@ -1203,18 +1292,38 @@ export default function Home() {
                 />
               </div>
 
-              {/* Zone preview : image uploadée + QR overlay (rendu live en CSS) */}
-              <div className="relative w-full max-w-[320px] mx-auto bg-zinc-100 rounded-xl overflow-hidden border border-zinc-200 aspect-square">
+              {/* Zone preview : image uploadée + QR overlay DRAGGABLE */}
+              <div
+                ref={previewContainerRef}
+                className="relative w-full max-w-[320px] mx-auto bg-zinc-100 rounded-xl overflow-hidden border border-zinc-200 touch-none select-none"
+                style={{
+                  aspectRatio: imageDimensions
+                    ? `${imageDimensions.w} / ${imageDimensions.h}`
+                    : '1 / 1',
+                }}
+              >
                 {stickerImageDataUrl ? (
                   <>
                     {/* Image de fond */}
                     <img
                       src={stickerImageDataUrl}
                       alt="Design du sticker"
-                      className="absolute inset-0 w-full h-full object-contain"
+                      className="absolute inset-0 w-full h-full object-cover"
+                      draggable={false}
                     />
-                    {/* QR overlay (simulé en bas-droite) */}
-                    <div className="absolute bottom-[5%] right-[5%] bg-white p-1 rounded shadow-md">
+                    {/* QR overlay draggable — position centrée sur {qrPosition} en % */}
+                    <div
+                      onPointerDown={handleQrPointerDown}
+                      onPointerMove={handleQrPointerMove}
+                      onPointerUp={handleQrPointerUp}
+                      className={`absolute bg-white p-1 rounded shadow-md cursor-move ${isDraggingQr ? 'cursor-grabbing ring-2 ring-emerald-400' : ''}`}
+                      style={{
+                        left: `${qrPosition.x * 100}%`,
+                        top: `${qrPosition.y * 100}%`,
+                        transform: 'translate(-50%, -50%)',
+                        touchAction: 'none', // empêche le scroll pendant le drag
+                      }}
+                    >
                       <QRCodeSVG
                         value={getPublicUrl(qrSticker.slug)}
                         size={64}
@@ -1224,6 +1333,12 @@ export default function Home() {
                         fgColor="#000000"
                       />
                     </div>
+                    {/* Indice drag */}
+                    {!isDraggingQr && (
+                      <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 text-white text-[10px] rounded-full pointer-events-none">
+                        ✋ Glisse le QR
+                      </div>
+                    )}
                   </>
                 ) : imageLoading ? (
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-400">
@@ -1241,7 +1356,7 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Bouton upload */}
+              {/* Boutons upload / supprimer */}
               <div className="mt-3 w-full">
                 <input
                   type="file"
@@ -1254,32 +1369,38 @@ export default function Home() {
                     e.target.value = '' // permet de re-uploader le même fichier
                   }}
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  disabled={imageLoading}
-                  onClick={() => document.getElementById('sticker-image-upload')?.click()}
-                >
-                  {imageLoading ? (
-                    <Loader2 size={14} className="mr-1.5 animate-spin" />
-                  ) : null}
-                  {stickerImageDataUrl ? 'Remplacer l\'image' : 'Importer mon design'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    disabled={imageLoading}
+                    onClick={() => document.getElementById('sticker-image-upload')?.click()}
+                  >
+                    {imageLoading ? (
+                      <Loader2 size={14} className="mr-1.5 animate-spin" />
+                    ) : null}
+                    {stickerImageDataUrl ? 'Remplacer' : 'Importer mon design'}
+                  </Button>
+                  {stickerImageDataUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleImageDelete}
+                      disabled={imageLoading}
+                      title="Supprimer l'image"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  )}
+                </div>
                 <p className="text-[10px] text-zinc-400 text-center mt-1">
-                  PNG, JPG ou WebP — max 2 MB (redimensionné si trop grand)
+                  PNG, JPG ou WebP — max 2 MB
                 </p>
               </div>
 
-              {/* URL publique (info) */}
-              <div className="mt-3 text-center w-full">
-                <p className="text-xs text-zinc-500 mb-1">URL publique scannable</p>
-                <code className="block text-xs font-mono text-zinc-700 break-all bg-zinc-50 px-3 py-2 rounded border border-zinc-200">
-                  {getPublicUrl(qrSticker.slug)}
-                </code>
-              </div>
-
-              {/* Actions */}
+              {/* Actions : copier URL (silencieux, sans afficher l'URL) + download */}
               <div className="mt-4 flex gap-2 w-full">
                 <Button
                   variant="outline"

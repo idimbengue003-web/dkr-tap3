@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
       active = true,
       customActionText,
       customNetwork,
+      qrPosition,
     } = body
 
     // Générer un slug unique court si non fourni (8 caractères base36)
@@ -60,6 +61,19 @@ export async function POST(request: NextRequest) {
         ? (customNetwork as 'google' | 'tiktok' | 'instagram' | 'none')
         : null
 
+    // Valider qrPosition (objet { x, y } entre 0 et 1)
+    let finalQrPosition: { x: number; y: number } | undefined
+    if (
+      qrPosition &&
+      typeof qrPosition === 'object' &&
+      typeof qrPosition.x === 'number' &&
+      typeof qrPosition.y === 'number' &&
+      qrPosition.x >= 0 && qrPosition.x <= 1 &&
+      qrPosition.y >= 0 && qrPosition.y <= 1
+    ) {
+      finalQrPosition = { x: qrPosition.x, y: qrPosition.y }
+    }
+
     const sticker = await db.createSticker({
       slug,
       label: label?.trim() || null,
@@ -70,6 +84,7 @@ export async function POST(request: NextRequest) {
           ? customActionText.trim()
           : null,
       customNetwork: finalCustomNetwork,
+      qrPosition: finalQrPosition,
     })
 
     return NextResponse.json(sticker, { status: 201 })

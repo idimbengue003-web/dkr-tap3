@@ -16,7 +16,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { label, targetUrl, active, customActionText, customNetwork } = body
+    const { label, targetUrl, active, customActionText, customNetwork, qrPosition } = body
 
     // Vérifier existence
     const existing = await db.getStickerById(id)
@@ -34,6 +34,7 @@ export async function PUT(
       active?: boolean
       customActionText?: string | null
       customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
+      qrPosition?: { x: number; y: number }
     } = {}
 
     if (label !== undefined) {
@@ -74,6 +75,22 @@ export async function PUT(
         validNetworks.includes(customNetwork)
           ? (customNetwork as 'google' | 'tiktok' | 'instagram' | 'none')
           : null
+    }
+
+    if (qrPosition !== undefined) {
+      // Valider qrPosition : objet { x, y } avec x,y ∈ [0, 1]
+      if (
+        qrPosition &&
+        typeof qrPosition === 'object' &&
+        typeof qrPosition.x === 'number' &&
+        typeof qrPosition.y === 'number' &&
+        qrPosition.x >= 0 && qrPosition.x <= 1 &&
+        qrPosition.y >= 0 && qrPosition.y <= 1
+      ) {
+        data.qrPosition = { x: qrPosition.x, y: qrPosition.y }
+      } else if (qrPosition === null) {
+        data.qrPosition = { x: 0.85, y: 0.85 } // reset au défaut
+      }
     }
 
     const updated = await db.updateSticker(id, data)

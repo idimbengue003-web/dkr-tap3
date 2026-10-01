@@ -39,6 +39,10 @@ export type Sticker = {
   /** Réseau forcé manuellement ('google' | 'tiktok' | 'instagram' | 'none').
    *  Si null ou absent → auto-détecté depuis l'URL cible. */
   customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
+  /** Position du QR code sur l'image uploadée, en pourcentage (0-1).
+   *  Coordonnées du CENTRE du QR par rapport aux dimensions de l'image.
+   *  Default: { x: 0.85, y: 0.85 } (bas-droite). */
+  qrPosition?: { x: number; y: number }
 }
 
 export type StickerInput = {
@@ -48,10 +52,14 @@ export type StickerInput = {
   active: boolean
   customActionText?: string | null
   customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
+  qrPosition?: { x: number; y: number }
 }
 
 export type StickerUpdate = Partial<
-  Pick<Sticker, 'label' | 'targetUrl' | 'active' | 'customActionText' | 'customNetwork'>
+  Pick<
+    Sticker,
+    'label' | 'targetUrl' | 'active' | 'customActionText' | 'customNetwork' | 'qrPosition'
+  >
 >
 
 /* ---------------- Helpers ---------------- */
@@ -96,6 +104,7 @@ export const db = {
       updatedAt: now,
       customActionText: input.customActionText ?? null,
       customNetwork: input.customNetwork ?? null,
+      qrPosition: input.qrPosition ?? { x: 0.85, y: 0.85 }, // bas-droite par défaut
     }
 
     // Pipeline-like : set sticker + set id→slug mapping + index liste
@@ -194,6 +203,9 @@ export const db = {
       ...(updates.customNetwork !== undefined
         ? { customNetwork: updates.customNetwork }
         : {}),
+      ...(updates.qrPosition !== undefined
+        ? { qrPosition: updates.qrPosition }
+        : {}),
       updatedAt: new Date().toISOString(),
     }
 
@@ -227,6 +239,9 @@ export const db = {
         : {}),
       ...(updates.customNetwork !== undefined
         ? { customNetwork: updates.customNetwork }
+        : {}),
+      ...(updates.qrPosition !== undefined
+        ? { qrPosition: updates.qrPosition }
         : {}),
       updatedAt: new Date().toISOString(),
     }
