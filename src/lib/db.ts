@@ -321,6 +321,75 @@ export const db = {
   },
 
   /**
+   * Duplique un sticker : crée un NOUVEAU sticker qui hérite de :
+   *   - L'image uploadée (copie de stickerImage:<slug> → stickerImage:<newSlug>)
+   *   - La position du QR (qrPosition)
+   *   - La taille du QR (qrSize)
+   *   - Le texte overlay (textOverlay)
+   *   - Le réseau forcé (customNetwork)
+   *   - Le texte d'action personnalisé (customActionText)
+   *
+   * Mais avec :
+   *   - Un NOUVEAU slug (auto-généré)
+   *   - Un NOUVEAU id
+   *   - targetUrl = null (l'utilisateur doit renseigner la nouvelle URL)
+   *   - label = "Copie de <original label>" (ou null si l'original n'avait pas de label)
+   *   - scanCount = 0
+   *
+   * Pratique pour créer des stickers à partir d'un "modèle" (template) :
+   * l'utilisateur configure un sticker parfait une fois, puis le duplique
+   * pour chaque nouveau client en changeant juste l'URL cible.
+   */
+  async duplicateSticker(id: string): Promise<Sticker | null> {
+    const original = await this.getStickerById(id)
+    if (!original) return null
+
+    // Générer un nouveau slug unique
+    let newSlug = Math.random().toString(36).slice(2, 10)
+    let attempts = 0
+    while (await this.slugExists(newSlug)) {
+      if (attempts++ > 10) {
+        newSlug = `${newSlug}-${Math.random().toString(36).slice(2, 6)}`
+        break
+      }
+      newSlug = Math.random().toString(36).slice(2, 10)
+    }
+
+    const now = new Date().toISOString()
+    const newSticker: Omit<Sticker, 'scanCount'> = {
+      id: generateId(),
+      slug: newSlug,
+      label: original.label ? `Copie de ${original.label}` : null,
+      targetUrl: null, // L'utilisateur devra renseigner la nouvelle URL
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+      customActionText: original.customActionText ?? null,
+      customNetwork: original.customNetwork ?? null,
+      qrPosition: original.qrPosition ?? { x: 0.85, y: 0.85 },
+      qrSize: original.qrSize ?? 0.25,
+      textOverlay: original.textOverlay ?? null,
+    }
+
+    // Sauvegarder le nouveau sticker
+    await store.set(`sticker:${newSlug}`, newSticker)
+    await store.set(`stickerId:${newSticker.id}`, newSlug)
+
+    // Ajouter à la liste indexée
+    const list = (await store.get<string[]>('stickers:list')) || []
+    list.unshift(newSlug)
+    await store.set('stickers:list', list)
+
+    // Copier l'image si elle existe
+    const originalImage = await store.get<string>(`stickerImage:${original.slug}`)
+    if (originalImage) {
+      await store.set(`stickerImage:${newSlug}`, originalImage)
+    }
+
+    return { ...newSticker, scanCount: 0 }
+  },
+
+  /**
    * Stocke l'image (data URL base64) pour un sticker.
    * @param slug slug du sticker
    * @param dataUrl data URL complète : "data:image/png;base64,..." ou "data:image/jpeg;base64,..."

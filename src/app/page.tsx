@@ -38,6 +38,7 @@ import {
   QrCode,
   ScanLine,
   Copy,
+  CopyPlus,
   ExternalLink,
   Loader2,
   Eye,
@@ -542,6 +543,30 @@ export default function Home() {
       })
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Dupliquer un sticker (modèle → nouveau sticker avec même image + position QR)
+  const handleDuplicate = async (sticker: Sticker) => {
+    try {
+      const res = await fetch(`/api/stickers/${sticker.id}/duplicate`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Erreur (${res.status})`)
+      }
+      toast({
+        title: 'Sticker dupliqué',
+        description: 'Modifie l\'URL cible du nouveau sticker.',
+      })
+      await fetchStickers()
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Duplication impossible',
+        description: e instanceof Error ? e.message : 'Erreur inconnue',
+      })
     }
   }
 
@@ -1199,6 +1224,7 @@ export default function Home() {
                       onQr={() => openQr(s)}
                       onCopyUrl={() => copyPublicUrl(s.slug)}
                       onOpenTarget={() => s.targetUrl && openTarget(s.targetUrl)}
+                      onDuplicate={() => handleDuplicate(s)}
                       publicUrl={getPublicUrl(s.slug)}
                     />
                   ))}
@@ -2041,6 +2067,7 @@ function StickerRow({
   onQr,
   onCopyUrl,
   onOpenTarget,
+  onDuplicate,
   publicUrl,
 }: {
   sticker: Sticker
@@ -2049,6 +2076,7 @@ function StickerRow({
   onQr: () => void
   onCopyUrl: () => void
   onOpenTarget: () => void
+  onDuplicate: () => void
   publicUrl: string
 }) {
   const [showUrl, setShowUrl] = useState(false)
@@ -2140,6 +2168,14 @@ function StickerRow({
             title="Copier l'URL publique"
           >
             <Copy size={14} />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onDuplicate}
+            title="Dupliquer (modèle → nouveau sticker)"
+          >
+            <CopyPlus size={14} />
           </Button>
           <Button
             size="sm"
