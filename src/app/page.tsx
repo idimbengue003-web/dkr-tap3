@@ -266,6 +266,9 @@ export default function Home() {
   } | null>(null)
   const [isDraggingQr, setIsDraggingQr] = useState(false)
   const [isDraggingText, setIsDraggingText] = useState(false)
+  const [isResizingQr, setIsResizingQr] = useState(false)
+  // Taille affichée du QR dans le preview (px) — calculée depuis qrSize et container dims
+  const [containerSize, setContainerSize] = useState({ w: 320, h: 320 })
   const previewContainerRef = useRef<HTMLDivElement>(null)
   // Dimensions naturelles de l'image (pour aspect-ratio du container)
   const [imageDimensions, setImageDimensions] = useState<{ w: number; h: number } | null>(null)
@@ -364,6 +367,31 @@ export default function Home() {
 
   // Re-charger les stats après modification d'un sticker ou scan test via curl
   // (rafraîchissement manuel via le bouton "Rafraîchir" dans la section stats)
+
+  // Suivre la taille du container de preview (pour calculer la taille d'affichage du QR)
+  useEffect(() => {
+    if (!qrOpen || !previewContainerRef.current) return
+    const updateSize = () => {
+      const rect = previewContainerRef.current?.getBoundingClientRect()
+      if (rect && rect.width > 0) {
+        setContainerSize({ w: rect.width, h: rect.height })
+      }
+    }
+    updateSize()
+    // Re-check after a short delay (image might not be loaded yet)
+    const timer = setTimeout(updateSize, 200)
+    const observer = new ResizeObserver(updateSize)
+    observer.observe(previewContainerRef.current)
+    return () => {
+      clearTimeout(timer)
+      observer.disconnect()
+    }
+  }, [qrOpen, stickerImageDataUrl, imageDimensions])
+
+  // Taille d'affichage du QR dans le preview (px) — proportionnelle au container
+  const qrPreviewSize = Math.round(
+    qrSize * Math.min(containerSize.w, containerSize.h)
+  )
 
   // Connexion
   const handleLogin = async (e: React.FormEvent) => {
@@ -732,6 +760,41 @@ export default function Home() {
     void saveStickerField({ qrPosition })
   }
 
+  // === Resize du QR par drag de la poignée (coin bas-droite) ===
+
+  const handleQrResizeStart = (e: React.PointerEvent) => {
+    e.stopPropagation() // empêche le drag de position de se déclencher aussi
+    setIsResizingQr(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+    e.preventDefault()
+  }
+
+  const handleQrResizeMove = (e: React.PointerEvent) => {
+    if (!isResizingQr || !previewContainerRef.current) return
+    const rect = previewContainerRef.current.getBoundingClientRect()
+    const minDim = Math.min(rect.width, rect.height)
+    // Position du CENTRE du QR (en px screen coords)
+    const qrCenterX = qrPosition.x * rect.width + rect.left
+    const qrCenterY = qrPosition.y * rect.height + rect.top
+    // Distance du pointer au centre du QR
+    const dx = Math.abs(e.clientX - qrCenterX)
+    const dy = Math.abs(e.clientY - qrCenterY)
+    // Le côté du carré QR = 2 × max(dx, dy) — on garde le ratio carré
+    const newSize = Math.max(0.05, Math.min(0.5, (2 * Math.max(dx, dy)) / minDim))
+    setQrSize(newSize)
+  }
+
+  const handleQrResizeEnd = (e: React.PointerEvent) => {
+    setIsResizingQr(false)
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+    // Sauvegarder la taille via API (silencieux)
+    void saveStickerField({ qrSize })
+  }
+
   // Handler drag-and-drop du TEXTE overlay (pointer events)
   const handleTextPointerDown = (e: React.PointerEvent) => {
     setIsDraggingText(true)
@@ -897,16 +960,8 @@ export default function Home() {
       const qrX = qrCenterX - qrSize / 2
       const qrY = qrCenterY - qrSize / 2
 
-      // Fond blanc derrière le QR (pour la lisibilité de scan si l'image de fond est sombre)
-      const padding = Math.round(qrSize * 0.08)
-      ctx.fillStyle = '#ffffff'
-      ctx.fillRect(
-        qrX - padding,
-        qrY - padding,
-        qrSize + padding * 2,
-        qrSize + padding * 2
-      )
-      // Dessiner le QR
+      // Pas de fond blanc — le QR est dessiné directement sur l'image (transparent).
+      // L'utilisateur doit s'assurer que son design a une zone claire à l'endroit du QR.
       ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize)
 
       // 6. Dessiner le texte overlay (si présent)
@@ -1447,8 +1502,8 @@ export default function Home() {
                   value={getPublicUrl(qrSticker.slug)}
                   size={280}
                   level="M"
-                  marginSize={2}
-                  bgColor="#ffffff"
+                  marginSize={0}
+                  bgColor="transparent"
                   fgColor="#000000"
                 />
               </div>
@@ -1472,26 +1527,36 @@ export default function Home() {
                       className="absolute inset-0 w-full h-full object-cover"
                       draggable={false}
                     />
-                    {/* QR overlay draggable — position centrée sur {qrPosition} en % */}
+                    {/* QR overlay draggable + resizable — pas de fond blanc */}
                     <div
                       onPointerDown={handleQrPointerDown}
                       onPointerMove={handleQrPointerMove}
                       onPointerUp={handleQrPointerUp}
-                      className={`absolute bg-white p-1 rounded shadow-md cursor-move ${isDraggingQr ? 'cursor-grabbing ring-2 ring-emerald-400' : ''}`}
+                      className={`absolute cursor-move ${isDraggingQr ? 'cursor-grabbing' : ''}`}
                       style={{
                         left: `${qrPosition.x * 100}%`,
                         top: `${qrPosition.y * 100}%`,
                         transform: 'translate(-50%, -50%)',
-                        touchAction: 'none', // empêche le scroll pendant le drag
+                        touchAction: 'none',
                       }}
                     >
+                      {/* Le QR lui-même — taille dynamique basée sur qrSize */}
                       <QRCodeSVG
                         value={getPublicUrl(qrSticker.slug)}
-                        size={64}
+                        size={Math.max(40, qrPreviewSize)}
                         level="M"
-                        marginSize={1}
-                        bgColor="#ffffff"
+                        marginSize={0}
+                        bgColor="transparent"
                         fgColor="#000000"
+                        style={{ display: 'block' }}
+                      />
+                      {/* Poignée de redimensionnement (coin bas-droite) */}
+                      <div
+                        onPointerDown={handleQrResizeStart}
+                        onPointerMove={handleQrResizeMove}
+                        onPointerUp={handleQrResizeEnd}
+                        className={`absolute -bottom-1.5 -right-1.5 w-4 h-4 rounded-full border-2 border-white shadow-md cursor-se-resize touch-none ${isResizingQr ? 'bg-emerald-500' : 'bg-emerald-400'}`}
+                        style={{ touchAction: 'none' }}
                       />
                     </div>
                     {/* Indice drag */}
@@ -1597,26 +1662,13 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Sliders + texte overlay (uniquement si une image est uploadée) */}
+              {/* Texte overlay (uniquement si une image est uploadée) */}
               {stickerImageDataUrl && (
                 <div className="mt-3 w-full space-y-3 border-t border-zinc-100 pt-3">
-                  {/* Slider taille du QR */}
-                  <div>
-                    <Label className="text-xs text-zinc-600 mb-1.5 block">
-                      Taille du QR : {Math.round(qrSize * 100)}%
-                    </Label>
-                    <input
-                      type="range"
-                      min="0.1"
-                      max="0.5"
-                      step="0.01"
-                      value={qrSize}
-                      onChange={(e) =>
-                        handleQrSizeChange(parseFloat(e.target.value))
-                      }
-                      className="w-full accent-emerald-500"
-                    />
-                  </div>
+                  {/* Indice redimensionnement */}
+                  <p className="text-[10px] text-zinc-400 text-center">
+                    📐 Glisse la pastille verte (coin du QR) pour redimensionner
+                  </p>
 
                   {/* Toggle texte overlay */}
                   <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 p-2.5">
