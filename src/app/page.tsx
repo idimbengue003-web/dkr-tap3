@@ -12,7 +12,7 @@ const WAVE_URL = process.env.NEXT_PUBLIC_WAVE_PAYMENT_URL || '#commander'
 const MODELES = [
   {
     name: 'Google Reviews',
-    emoji: '⭐',
+    icon: '/network-google.svg',
     color: '#4285F4',
     price: '3 000',
     desc: 'Boostez vos avis Google. Vos clients scannent et laissent une note 5 étoiles en 1 clic.',
@@ -20,7 +20,7 @@ const MODELES = [
   },
   {
     name: 'TikTok',
-    emoji: '🚀',
+    icon: '/network-tiktok.svg',
     color: '#25F4EE',
     price: '3 000',
     desc: 'Gagnez des abonnés TikTok. Le QR redirige directement vers votre profil ou une vidéo.',
@@ -28,7 +28,7 @@ const MODELES = [
   },
   {
     name: 'Instagram',
-    emoji: '📸',
+    icon: '/network-instagram.svg',
     color: '#d6299f',
     price: '3 000',
     desc: 'Augmentez vos followers Instagram. Le QR mène vers votre compte ou un post spécifique.',
@@ -36,7 +36,7 @@ const MODELES = [
   },
   {
     name: 'WhatsApp',
-    emoji: '💬',
+    icon: '/network-whatsapp.svg',
     color: '#25D366',
     price: '2 500',
     desc: 'Vos clients vous contactent directement sur WhatsApp Business en scannant le sticker.',
@@ -44,7 +44,7 @@ const MODELES = [
   },
   {
     name: 'YouTube',
-    emoji: '▶️',
+    icon: '/network-youtube.svg',
     color: '#FF0000',
     price: '3 500',
     desc: 'Augmentez vos abonnés YouTube. Redirige vers votre chaîne ou une vidéo spécifique.',
@@ -52,7 +52,7 @@ const MODELES = [
   },
   {
     name: 'Facebook',
-    emoji: '👍',
+    icon: '/network-facebook.svg',
     color: '#1877F2',
     price: '2 500',
     desc: 'Gagnez des fans Facebook et des recommandations sur votre page professionnelle.',
@@ -60,7 +60,7 @@ const MODELES = [
   },
   {
     name: 'Personnalisé',
-    emoji: '✨',
+    icon: '/scanbridge-logo.svg',
     color: '#10b981',
     price: '5 000',
     desc: 'Votre propre design, votre propre URL. Importez votre image et placez le QR où vous voulez.',
@@ -68,7 +68,7 @@ const MODELES = [
   },
   {
     name: 'Snapchat',
-    emoji: '👻',
+    icon: '/network-snapchat.svg',
     color: '#FFFC00',
     price: '2 500',
     desc: 'Ajoutez vos clients sur Snapchat et partagez vos stories.',
@@ -319,7 +319,13 @@ export default function LandingPage() {
                   className="h-24 flex items-center justify-center text-4xl"
                   style={{ background: `radial-gradient(circle, ${model.color}25 0%, transparent 70%)` }}
                 >
-                  <span style={{ filter: `drop-shadow(0 2px 8px ${model.color}40)` }}>{model.emoji}</span>
+                  <img
+                    src={model.icon}
+                    alt={`Logo ${model.name}`}
+                    width={48}
+                    height={48}
+                    className="opacity-90"
+                  />
                 </div>
 
                 {/* Body */}
