@@ -235,17 +235,6 @@ export default function LandingPage() {
             3 étapes simples pour avoir vos stickers QR pro et dynamiques
           </p>
 
-          {/* Image illustration "comment ça marche" */}
-          <div className="mb-10 rounded-2xl overflow-hidden border border-zinc-800 shadow-xl">
-            <img
-              src="/how-it-works.png"
-              alt="Processus en 3 étapes : création, scan, redirection"
-              className="w-full h-auto"
-              width={1344}
-              height={768}
-            />
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               {
