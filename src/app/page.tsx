@@ -193,6 +193,17 @@ export default function LandingPage() {
             </a>
           </div>
 
+          {/* Image hero illustrative */}
+          <div className="mt-12 max-w-2xl mx-auto rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl shadow-emerald-500/10">
+            <img
+              src="/hero-scan.png"
+              alt="Smartphone scannant un sticker QR code DKR TAP"
+              className="w-full h-auto"
+              width={1024}
+              height={1024}
+            />
+          </div>
+
           <div className="grid grid-cols-3 gap-8 mt-16 max-w-2xl mx-auto">
             <div>
               <p className="text-3xl font-bold text-emerald-400">∞</p>
@@ -219,6 +230,17 @@ export default function LandingPage() {
           <p className="text-center text-zinc-400 mb-12 max-w-2xl mx-auto">
             3 étapes simples pour avoir vos stickers QR pro et dynamiques
           </p>
+
+          {/* Image illustration "comment ça marche" */}
+          <div className="mb-10 rounded-2xl overflow-hidden border border-zinc-800 shadow-xl">
+            <img
+              src="/how-it-works.png"
+              alt="Processus en 3 étapes : création, scan, redirection"
+              className="w-full h-auto"
+              width={1344}
+              height={768}
+            />
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
@@ -281,6 +303,17 @@ export default function LandingPage() {
           <p className="text-center text-zinc-400 mb-12 max-w-2xl mx-auto">
             Des designs professionnels pour chaque réseau social. Chaque sticker inclut la page d\'attente aux couleurs de la marque.
           </p>
+
+          {/* Image vitrine des modèles */}
+          <div className="mb-10 rounded-2xl overflow-hidden border border-zinc-800 shadow-xl max-w-2xl mx-auto">
+            <img
+              src="/models-showcase.png"
+              alt="Collection de stickers QR code avec différents réseaux sociaux"
+              className="w-full h-auto"
+              width={1024}
+              height={1024}
+            />
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {MODELES.map((model) => (
