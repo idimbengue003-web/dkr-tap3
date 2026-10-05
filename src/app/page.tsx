@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ScrollSequence } from '@/components/scroll-sequence'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
 const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/scanbridge-logo.svg'
@@ -220,6 +221,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ===== SCROLL VIDÉO — 3 frames en séquence ===== */}
+      <ScrollSequence />
 
       {/* ===== COMMENT ÇA MARCHE ===== */}
       <section className="py-20 px-4 sm:px-6">
