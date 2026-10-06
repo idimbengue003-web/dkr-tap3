@@ -4,11 +4,16 @@ import { useRef } from 'react'
 import { motion, useScroll, useTransform } from 'framer-motion'
 
 /**
- * Section scroll-driven qui affiche 3 images en séquence.
+ * Section scroll-driven qui affiche 5 images en séquence.
  * Au fur et à mesure que l'utilisateur défile, les images se succèdent
  * en crossfade, créant un effet "vidéo" de progression.
  *
- * Utilise Framer Motion (useScroll + useTransform) — compatible mobile.
+ * 5 frames :
+ *   1. Sticker sur le mur, téléphone qui s'approche
+ *   2. Zoom sur le QR qui s'illumine
+ *   3. Le téléphone scanne, flash vert
+ *   4. Notification de redirection sur le téléphone
+ *   5. L'app réseau social s'ouvre
  */
 export function ScrollSequence() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -17,91 +22,86 @@ export function ScrollSequence() {
     offset: ['start start', 'end end'],
   })
 
-  // Opacité de chaque frame selon la position de scroll
-  // Frame 1 : visible au début, disparaît vers 33%
-  const opacity1 = useTransform(scrollYProgress, [0, 0.25, 0.4], [1, 1, 0])
-  // Frame 2 : apparaît à 33%, disparaît à 66%
-  const opacity2 = useTransform(scrollYProgress, [0.3, 0.45, 0.6, 0.7], [0, 1, 1, 0])
-  // Frame 3 : apparaît à 66%
-  const opacity3 = useTransform(scrollYProgress, [0.6, 0.75, 1], [0, 1, 1])
+  // 5 frames → 5 segments de scroll
+  // Frame 1 : 0 → 0.18
+  const opacity1 = useTransform(scrollYProgress, [0, 0.12, 0.18], [1, 1, 0])
+  const scale1 = useTransform(scrollYProgress, [0, 0.18], [1, 1.08])
 
-  // Scale subtil pour effet de profondeur
-  const scale1 = useTransform(scrollYProgress, [0, 0.4], [1, 1.1])
-  const scale2 = useTransform(scrollYProgress, [0.3, 0.7], [0.95, 1.05])
-  const scale3 = useTransform(scrollYProgress, [0.6, 1], [0.95, 1.05])
+  // Frame 2 : 0.14 → 0.34
+  const opacity2 = useTransform(scrollYProgress, [0.14, 0.22, 0.28, 0.34], [0, 1, 1, 0])
+  const scale2 = useTransform(scrollYProgress, [0.14, 0.34], [0.95, 1.08])
 
-  // Texte qui change avec le scroll
-  const text1Opacity = useTransform(scrollYProgress, [0, 0.25, 0.35], [1, 1, 0])
-  const text2Opacity = useTransform(scrollYProgress, [0.35, 0.5, 0.6, 0.65], [0, 1, 1, 0])
-  const text3Opacity = useTransform(scrollYProgress, [0.65, 0.8, 1], [0, 1, 1])
+  // Frame 3 : 0.30 → 0.52
+  const opacity3 = useTransform(scrollYProgress, [0.30, 0.38, 0.46, 0.52], [0, 1, 1, 0])
+  const scale3 = useTransform(scrollYProgress, [0.30, 0.52], [0.95, 1.08])
+
+  // Frame 4 : 0.48 → 0.72
+  const opacity4 = useTransform(scrollYProgress, [0.48, 0.56, 0.66, 0.72], [0, 1, 1, 0])
+  const scale4 = useTransform(scrollYProgress, [0.48, 0.72], [0.95, 1.08])
+
+  // Frame 5 : 0.68 → 1
+  const opacity5 = useTransform(scrollYProgress, [0.68, 0.78, 1], [0, 1, 1])
+  const scale5 = useTransform(scrollYProgress, [0.68, 1], [0.95, 1.05])
+
+  // Textes qui changent
+  const t1 = useTransform(scrollYProgress, [0, 0.12, 0.18], [1, 1, 0])
+  const t2 = useTransform(scrollYProgress, [0.14, 0.22, 0.28, 0.34], [0, 1, 1, 0])
+  const t3 = useTransform(scrollYProgress, [0.30, 0.38, 0.46, 0.52], [0, 1, 1, 0])
+  const t4 = useTransform(scrollYProgress, [0.48, 0.56, 0.66, 0.72], [0, 1, 1, 0])
+  const t5 = useTransform(scrollYProgress, [0.68, 0.78, 1], [0, 1, 1])
+
+  const frames = [
+    { src: '/scroll-1.png', alt: 'Sticker QR sur le mur', opacity: opacity1, scale: scale1 },
+    { src: '/scroll-4.png', alt: 'QR code qui s\'illumine', opacity: opacity2, scale: scale2 },
+    { src: '/scroll-2.png', alt: 'Scan du QR code', opacity: opacity3, scale: scale3 },
+    { src: '/scroll-5.png', alt: 'Notification de redirection', opacity: opacity4, scale: scale4 },
+    { src: '/scroll-3.png', alt: 'App réseau social ouverte', opacity: opacity5, scale: scale5 },
+  ]
+
+  const texts = [
+    { text: '1. Le sticker est sur le mur 🏪', opacity: t1 },
+    { text: '2. Le QR code s\'illumine ✨', opacity: t2 },
+    { text: '3. Le client scanne le code 📱', opacity: t3 },
+    { text: '4. Notification reçue 🔔', opacity: t4 },
+    { text: '5. Redirection vers votre page ✅', opacity: t5 },
+  ]
 
   return (
-    <section ref={containerRef} className="relative" style={{ height: '200vh' }}>
-      {/* Container sticky — reste fixe pendant le scroll */}
+    <section ref={containerRef} className="relative" style={{ height: '300vh' }}>
       <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
-        {/* Background gradient */}
+        {/* Background */}
         <div className="absolute inset-0 bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[100px]" />
 
-        {/* Frame 1 */}
-        <motion.div
-          className="absolute inset-0 flex items-center justify-center"
-          style={{ opacity: opacity1, scale: scale1 }}
-        >
-          <img
-            src="/scroll-1.png"
-            alt="Sticker QR sur le mur, téléphone qui s'approche"
-            className="max-h-[70vh] w-auto rounded-2xl shadow-2xl"
-          />
-        </motion.div>
+        {/* 5 frames plein écran */}
+        {frames.map((f, i) => (
+          <motion.div
+            key={i}
+            className="absolute inset-0"
+            style={{ opacity: f.opacity, scale: f.scale }}
+          >
+            <img
+              src={f.src}
+              alt={f.alt}
+              className="w-full h-full object-cover"
+            />
+          </motion.div>
+        ))}
 
-        {/* Frame 2 */}
-        <motion.div
-          className="absolute inset-0 flex items-center justify-center"
-          style={{ opacity: opacity2, scale: scale2 }}
-        >
-          <img
-            src="/scroll-2.png"
-            alt="Scan du QR code, flash vert"
-            className="max-h-[70vh] w-auto rounded-2xl shadow-2xl"
-          />
-        </motion.div>
-
-        {/* Frame 3 */}
-        <motion.div
-          className="absolute inset-0 flex items-center justify-center"
-          style={{ opacity: opacity3, scale: scale3 }}
-        >
-          <img
-            src="/scroll-3.png"
-            alt="Téléphone redirigé vers le réseau social"
-            className="max-h-[70vh] w-auto rounded-2xl shadow-2xl"
-          />
-        </motion.div>
-
-        {/* Texte overlay qui change */}
+        {/* Texte overlay */}
         <div className="absolute bottom-20 left-0 right-0 text-center px-4">
-          <motion.p
-            className="text-xl sm:text-2xl font-bold text-white"
-            style={{ opacity: text1Opacity }}
-          >
-            1. Le sticker est sur le mur 🏪
-          </motion.p>
-          <motion.p
-            className="absolute inset-0 text-xl sm:text-2xl font-bold text-emerald-400"
-            style={{ opacity: text2Opacity }}
-          >
-            2. Le client scanne le QR code 📱
-          </motion.p>
-          <motion.p
-            className="absolute inset-0 text-xl sm:text-2xl font-bold text-emerald-400"
-            style={{ opacity: text3Opacity }}
-          >
-            3. Redirection vers votre page ✅
-          </motion.p>
+          {texts.map((t, i) => (
+            <motion.p
+              key={i}
+              className="absolute inset-0 text-xl sm:text-3xl font-bold text-white"
+              style={{ opacity: t.opacity, textShadow: '0 2px 20px rgba(0,0,0,0.8)' }}
+            >
+              {t.text}
+            </motion.p>
+          ))}
         </div>
 
-        {/* Indicateur de progression */}
+        {/* Barre de progression */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-32 h-1 bg-zinc-800 rounded-full overflow-hidden">
           <motion.div
             className="h-full bg-emerald-500 rounded-full"
