@@ -51,7 +51,7 @@ export function ScrollSequence() {
           <img
             src="/scroll-1.png"
             alt="Sticker QR sur le mur, téléphone qui s'approche"
-            className="max-h-[70vh] w-auto rounded-2xl shadow-2xl"
+            className="w-full h-full object-cover"
           />
         </motion.div>
 
@@ -63,7 +63,7 @@ export function ScrollSequence() {
           <img
             src="/scroll-2.png"
             alt="Scan du QR code, flash vert"
-            className="max-h-[70vh] w-auto rounded-2xl shadow-2xl"
+            className="w-full h-full object-cover"
           />
         </motion.div>
 
@@ -75,7 +75,7 @@ export function ScrollSequence() {
           <img
             src="/scroll-3.png"
             alt="Téléphone redirigé vers le réseau social"
-            className="max-h-[70vh] w-auto rounded-2xl shadow-2xl"
+            className="w-full h-full object-cover"
           />
         </motion.div>
 
