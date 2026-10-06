@@ -76,53 +76,11 @@ const MODELES = [
   },
 ]
 
-// Abonnements en FCFA
-const PLANS = [
-  {
-    name: 'Starter',
-    price: 'Gratuit',
-    period: '',
-    desc: 'Pour découvrir',
-    features: [
-      '3 stickers QR maximum',
-      'Modèles de base',
-      'Modification illimitée des liens',
-      'Redirection automatique',
-    ],
-    highlighted: false,
-  },
-  {
-    name: 'Pro',
-    price: '10 000',
-    period: 'FCFA / mois',
-    desc: 'Pour les commerçants actifs',
-    features: [
-      'Stickers illimités',
-      'Tous les modèles (Google, TikTok, IG, etc.)',
-      'Design 100% personnalisé',
-      'QR redimensionnable et déplaçable',
-      'Texte sur l\'image',
-      'Stats détaillées (scans, top stickers)',
-      'Page d\'attente aux couleurs du réseau',
-      'Duplication de stickers (modèles)',
-    ],
-    highlighted: true,
-  },
-  {
-    name: 'Business',
-    price: '50 000',
-    period: 'FCFA / mois',
-    desc: 'Pour les agences & réseaux',
-    features: [
-      'Tout le plan Pro',
-      'Stickers illimités',
-      'Domaine personnalisé',
-      'Support prioritaire 24/7',
-      'Accompagnement personnalisé',
-      'Création de modèles sur-mesure',
-    ],
-    highlighted: false,
-  },
+// Tarifs par quantité (FCFA) — prix dégressifs
+const TARIFS = [
+  { qty: '1 à 9 cartes', price: '3 000', unit: 'FCFA / carte', desc: 'Prix unitaire standard' },
+  { qty: '10 à 19 cartes', price: '2 500', unit: 'FCFA / carte', desc: 'Remise volume', highlight: true },
+  { qty: '20 cartes et +', price: '1 500', unit: 'FCFA / carte', desc: 'Meilleur tarif' },
 ]
 
 export default function LandingPage() {
@@ -381,62 +339,45 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ===== TARIFS / ABONNEMENTS ===== */}
+      {/* ===== TARIFS PAR QUANTITÉ ===== */}
       <section id="tarifs" className="py-20 px-4 sm:px-6">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-3xl mx-auto">
           <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4">
-            Nos abonnements
+            Nos tarifs
           </h2>
           <p className="text-center text-zinc-400 mb-12 max-w-2xl mx-auto">
-            Choisissez le plan qui vous convient. Paiement via Wave ou appel direct.
+            Prix par carte sticker. Plus tu commandes, moins tu paies.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {PLANS.map((plan) => (
+          <div className="space-y-4">
+            {TARIFS.map((t) => (
               <div
-                key={plan.name}
-                className={`rounded-2xl p-6 flex flex-col relative ${plan.highlighted ? 'border-2 border-emerald-500 -mt-2' : 'border border-zinc-800'}`}
+                key={t.qty}
+                className={`flex items-center justify-between gap-4 rounded-2xl p-5 ${t.highlight ? 'border-2 border-emerald-500 bg-emerald-500/5' : 'border border-zinc-800'}`}
               >
-                {plan.highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-emerald-500 text-black text-xs font-bold">
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-white">{t.qty}</p>
+                  <p className="text-xs text-zinc-500">{t.desc}</p>
+                </div>
+                <div className="text-right">
+                  <span className={`text-2xl font-bold ${t.highlight ? 'text-emerald-400' : 'text-white'}`}>
+                    {t.price}
+                  </span>
+                  <span className="text-sm text-zinc-500 ml-1">{t.unit}</span>
+                </div>
+                {t.highlight && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-black text-xs font-bold shrink-0">
                     POPULAIRE
-                  </div>
-                )}
-                <h3 className="text-lg font-bold mb-1">{plan.name}</h3>
-                <p className="text-sm text-zinc-500 mb-4">{plan.desc}</p>
-                <p className="text-3xl font-bold mb-1">
-                  {plan.price}
-                  {plan.period && <span className="text-base font-normal text-zinc-500"> {plan.period}</span>}
-                </p>
-                <div className="mb-6" />
-                <ul className="space-y-2 text-sm text-zinc-400 mb-6 flex-1">
-                  {plan.features.map((f, i) => (
-                    <li key={i} className="flex items-center gap-2">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={plan.highlighted ? '#10b981' : '#52525b'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                {plan.price === 'Gratuit' ? (
-                  <a
-                    href="#commander"
-                    className="text-center py-2.5 rounded-lg bg-zinc-800 text-white text-sm font-semibold hover:bg-zinc-700 transition-colors"
-                  >
-                    Commencer gratuitement
-                  </a>
-                ) : (
-                  <a
-                    href={WAVE_URL}
-                    className="text-center py-2.5 rounded-lg bg-emerald-500 text-black text-sm font-semibold hover:bg-emerald-400 transition-colors"
-                  >
-                    Payer avec Wave
-                  </a>
+                  </span>
                 )}
               </div>
             ))}
           </div>
+
+          <p className="text-center text-zinc-500 text-sm mt-8">
+            Choisissez votre modèle (Google, TikTok, Instagram, etc.) et commandez la quantité voulue.
+            Paiement via Wave ou appel.
+          </p>
         </div>
       </section>
 
