@@ -124,14 +124,15 @@ export default function LandingPage() {
           </div>
 
           <h1 className="text-4xl sm:text-6xl font-bold tracking-tight mb-6">
-            Vos stickers QR <span className="text-emerald-400">dynamiques</span>
+            Un scan. <span className="text-emerald-400">Un abonné.</span>
             <br />
-            Changez le lien sans réimprimer
+            Un avis cinq étoiles.
           </h1>
 
           <p className="text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto mb-10">
-            Importez votre design, placez le QR code où vous voulez. Quand un client scanne,
-            il est redirigé vers votre page. Modifiez le lien quand vous voulez — le sticker reste le même.
+            Vos cartes QR DKR TAP redirigent vos clients directement vers vos réseaux sociaux.
+            TikTok, Instagram, Google, WhatsApp — choisissez votre réseau, on s'occupe du reste.
+            Vos clients scannent, votre audience grandit.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -165,16 +166,16 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-3 gap-8 mt-16 max-w-2xl mx-auto">
             <div>
-              <p className="text-3xl font-bold text-emerald-400">∞</p>
-              <p className="text-sm text-zinc-500">Modifications illimitées</p>
-            </div>
-            <div>
-              <p className="text-3xl font-bold text-emerald-400">600ms</p>
-              <p className="text-sm text-zinc-500">Redirection ultra-rapide</p>
+              <p className="text-3xl font-bold text-emerald-400">8+</p>
+              <p className="text-sm text-zinc-500">Réseaux disponibles</p>
             </div>
             <div>
               <p className="text-3xl font-bold text-emerald-400">24/7</p>
               <p className="text-sm text-zinc-500">Disponible tout le temps</p>
+            </div>
+            <div>
+              <p className="text-3xl font-bold text-emerald-400">∞</p>
+              <p className="text-sm text-zinc-500">Liens modifiables à volonté</p>
             </div>
           </div>
         </div>
