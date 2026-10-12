@@ -507,9 +507,42 @@ export const db = {
 
   async listCategories(): Promise<Category[]> {
     const ids = (await store.get<string[]>('categories:list')) || []
-    if (!ids.length) return []
+    if (!ids.length) {
+      // Auto-seed : crée les 8 catégories par défaut au premier appel
+      await this.seedDefaultCategories()
+      const newIds = (await store.get<string[]>('categories:list')) || []
+      if (!newIds.length) return []
+      const cats = await store.mget<Category>(...newIds.map((id) => `category:${id}`))
+      return cats.filter(Boolean) as Category[]
+    }
     const cats = await store.mget<Category>(...ids.map((id) => `category:${id}`))
     return cats.filter(Boolean) as Category[]
+  },
+
+  /** Crée les 8 catégories par défaut (Google, TikTok, Instagram, WhatsApp, YouTube, Facebook, Personnalisé, Snapchat) */
+  async seedDefaultCategories(): Promise<void> {
+    const defaults = [
+      { name: 'Google Reviews', network: 'google', price: 3000, description: 'Boostez vos avis Google. Vos clients scannent et laissent une note 5 étoiles en 1 clic.', imagePath: '/network-google.svg' },
+      { name: 'TikTok', network: 'tiktok', price: 3000, description: 'Gagnez des abonnés TikTok. Le QR redirige directement vers votre profil ou une vidéo.', imagePath: '/network-tiktok.svg' },
+      { name: 'Instagram', network: 'instagram', price: 3000, description: 'Augmentez vos followers Instagram. Le QR mène vers votre compte ou un post spécifique.', imagePath: '/network-instagram.svg' },
+      { name: 'WhatsApp', network: 'whatsapp', price: 2500, description: 'Vos clients vous contactent directement sur WhatsApp Business en scannant le sticker.', imagePath: '/network-whatsapp.svg' },
+      { name: 'YouTube', network: 'youtube', price: 3500, description: 'Augmentez vos abonnés YouTube. Redirige vers votre chaîne ou une vidéo spécifique.', imagePath: '/network-youtube.svg' },
+      { name: 'Facebook', network: 'facebook', price: 2500, description: 'Gagnez des fans Facebook et des recommandations sur votre page professionnelle.', imagePath: '/network-facebook.svg' },
+      { name: 'Personnalisé', network: null, price: 5000, description: 'Votre propre design, votre propre URL. Importez votre image et placez le QR où vous voulez.', imagePath: '/scanbridge-logo.svg' },
+      { name: 'Snapchat', network: 'snapchat', price: 2500, description: 'Ajoutez vos clients sur Snapchat et partagez vos stories.', imagePath: '/network-snapchat.svg' },
+    ]
+    const list: string[] = []
+    for (const d of defaults) {
+      const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+      const now = new Date().toISOString()
+      const cat: Category = {
+        id, name: d.name, network: d.network, description: d.description,
+        price: d.price, imagePath: d.imagePath, createdAt: now, updatedAt: now,
+      }
+      await store.set(`category:${id}`, cat)
+      list.push(id)
+    }
+    await store.set('categories:list', list)
   },
 
   async getCategory(id: string): Promise<Category | null> {
