@@ -2083,6 +2083,24 @@ function CategoriesSection() {
     price: '3000',
     imagePath: '',
   })
+  // États pour les modèles par catégorie
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [catModels, setCatModels] = useState<Record<string, StickerModel[]>>({})
+  const [modelLoading, setModelLoading] = useState(false)
+  const [showModelForm, setShowModelForm] = useState(false)
+  const [editingModelId, setEditingModelId] = useState<string | null>(null)
+  const [modelForm, setModelForm] = useState({ name: '', description: '', price: '3000', imagePath: '' })
+
+  type StickerModel = {
+    id: string
+    categoryId: string
+    name: string
+    description: string | null
+    price: number
+    imagePath: string | null
+    createdAt: string
+    updatedAt: string
+  }
 
   const fetchCategories = useCallback(async () => {
     setLoading(true)
@@ -2158,6 +2176,77 @@ function CategoriesSection() {
     }
   }
 
+  // === Gestion des modèles ===
+
+  const fetchModels = useCallback(async (catId: string) => {
+    setModelLoading(true)
+    try {
+      const res = await fetch(`/api/categories/${catId}/models`, { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        setCatModels((prev) => ({ ...prev, [catId]: data }))
+      }
+    } catch {}
+    setModelLoading(false)
+  }, [])
+
+  const setSelectedCategory = (cat: Category) => {
+    setSelectedCategoryId((prev) => (prev === cat.id ? null : cat.id))
+    setShowModelForm(false)
+  }
+
+  const handleModelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedCategoryId || !modelForm.name.trim()) {
+      toast({ variant: 'destructive', title: 'Nom requis' })
+      return
+    }
+    try {
+      const payload = {
+        name: modelForm.name.trim(),
+        description: modelForm.description.trim() || null,
+        price: parseInt(modelForm.price) || undefined,
+        imagePath: modelForm.imagePath.trim() || null,
+      }
+      if (editingModelId) {
+        await fetch(`/api/models/${editingModelId}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        toast({ title: 'Modèle modifié' })
+      } else {
+        await fetch(`/api/categories/${selectedCategoryId}/models`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        toast({ title: 'Modèle créé' })
+      }
+      setShowModelForm(false)
+      setEditingModelId(null)
+      setModelForm({ name: '', description: '', price: '3000', imagePath: '' })
+      await fetchModels(selectedCategoryId)
+    } catch {
+      toast({ variant: 'destructive', title: 'Erreur' })
+    }
+  }
+
+  const handleEditModel = (m: StickerModel) => {
+    setEditingModelId(m.id)
+    setModelForm({ name: m.name, description: m.description ?? '', price: String(m.price), imagePath: m.imagePath ?? '' })
+    setShowModelForm(true)
+  }
+
+  const handleDeleteModel = async (modelId: string, catId: string) => {
+    if (!confirm('Supprimer ce modèle ?')) return
+    try {
+      await fetch(`/api/models/${modelId}`, { method: 'DELETE' })
+      toast({ title: 'Modèle supprimé' })
+      await fetchModels(catId)
+    } catch {
+      toast({ variant: 'destructive', title: 'Erreur' })
+    }
+  }
+
   return (
     <Card className="bg-white border-zinc-200 mt-4">
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -2223,24 +2312,95 @@ function CategoriesSection() {
         ) : (
           <div className="divide-y divide-zinc-100">
             {categories.map((cat) => (
-              <div key={cat.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+              <div key={cat.id}>
+                <div className="flex items-center justify-between gap-3 py-2.5">
+                  <button
+                    className="flex-1 min-w-0 text-left flex items-center gap-2 hover:bg-zinc-50 rounded-lg p-1 -m-1 transition-colors"
+                    onClick={() => {
+                      setSelectedCategory(cat)
+                      fetchModels(cat.id)
+                    }}
+                  >
                     <span className="font-medium text-sm">{cat.name}</span>
                     {cat.network && <Badge variant="outline" className="text-xs">{cat.network}</Badge>}
                     <span className="text-sm font-bold text-emerald-600">{cat.price.toLocaleString('fr-FR')} FCFA</span>
+                    {catModels[cat.id] && catModels[cat.id].length > 0 && (
+                      <Badge variant="outline" className="text-xs text-zinc-500">{catModels[cat.id].length} modèle(s)</Badge>
+                    )}
+                  </button>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => handleEdit(cat)} title="Modifier">
+                      <Pencil size={14} />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleDelete(cat.id)} title="Supprimer"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                      <Trash2 size={14} />
+                    </Button>
                   </div>
-                  {cat.description && <p className="text-xs text-zinc-500 truncate">{cat.description}</p>}
                 </div>
-                <div className="flex gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => handleEdit(cat)} title="Modifier">
-                    <Pencil size={14} />
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(cat.id)} title="Supprimer"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
+                {/* Modèles de cette catégorie (affiché si la catégorie est sélectionnée) */}
+                {selectedCategoryId === cat.id && (
+                  <div className="pl-4 pb-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-zinc-600">Modèles disponibles</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setModelForm({ name: '', description: '', price: String(cat.price), imagePath: '' })
+                          setShowModelForm(true)
+                          setEditingModelId(null)
+                        }}
+                      >
+                        <Plus size={12} className="mr-1" /> Ajouter un modèle
+                      </Button>
+                    </div>
+                    {showModelForm && selectedCategoryId === cat.id && (
+                      <form onSubmit={handleModelSubmit} className="space-y-2 p-2 rounded border border-zinc-200 bg-zinc-50">
+                        <Input placeholder="Nom du modèle *" value={modelForm.name}
+                          onChange={(e) => setModelForm({ ...modelForm, name: e.target.value })} />
+                        <Input placeholder="Description" value={modelForm.description}
+                          onChange={(e) => setModelForm({ ...modelForm, description: e.target.value })} />
+                        <div className="flex gap-2">
+                          <Input type="number" placeholder="Prix FCFA" value={modelForm.price}
+                            onChange={(e) => setModelForm({ ...modelForm, price: e.target.value })} className="w-32" />
+                          <Input placeholder="/chemin-image.png" value={modelForm.imagePath}
+                            onChange={(e) => setModelForm({ ...modelForm, imagePath: e.target.value })} className="flex-1" />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button type="submit" size="sm">{editingModelId ? 'Enregistrer' : 'Créer'}</Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => setShowModelForm(false)}>Annuler</Button>
+                        </div>
+                      </form>
+                    )}
+                    {modelLoading ? (
+                      <p className="text-xs text-zinc-400">Chargement...</p>
+                    ) : (catModels[cat.id] || []).length === 0 ? (
+                      <p className="text-xs text-zinc-400">Aucun modèle. Clique sur "Ajouter un modèle".</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {(catModels[cat.id] || []).map((m) => (
+                          <div key={m.id} className="flex items-center justify-between gap-2 p-1.5 rounded bg-white border border-zinc-100">
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium">{m.name}</span>
+                              {m.price !== cat.price && <span className="text-xs text-emerald-600 ml-2">{m.price.toLocaleString('fr-FR')} FCFA</span>}
+                              {m.description && <p className="text-[10px] text-zinc-400 truncate">{m.description}</p>}
+                            </div>
+                            <div className="flex gap-0.5">
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => handleEditModel(m)}>
+                                <Pencil size={10} />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-600" onClick={() => handleDeleteModel(m.id, cat.id)}>
+                                <Trash2 size={10} />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

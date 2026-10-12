@@ -584,6 +584,55 @@ export const db = {
   async getAllModelPhotos(): Promise<(string | null)[]> {
     return Promise.all([1, 2, 3].map((n) => store.get<string>(`modelPhoto:${n}`)))
   },
+
+  /* ============ MODÈLES PAR CATÉGORIE ============ */
+
+  async listModels(categoryId: string): Promise<StickerModel[]> {
+    const ids = (await store.get<string[]>(`categoryModels:${categoryId}`)) || []
+    if (!ids.length) return []
+    const models = await store.mget<StickerModel>(...ids.map((id) => `model:${id}`))
+    return models.filter(Boolean) as StickerModel[]
+  },
+
+  async createModel(categoryId: string, input: {
+    name: string
+    description?: string | null
+    price?: number
+    imagePath?: string | null
+  }): Promise<StickerModel> {
+    const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    const now = new Date().toISOString()
+    const model: StickerModel = {
+      id, categoryId, name: input.name,
+      description: input.description ?? null,
+      price: input.price ?? 3000,
+      imagePath: input.imagePath ?? null,
+      createdAt: now, updatedAt: now,
+    }
+    await store.set(`model:${id}`, model)
+    const list = (await store.get<string[]>(`categoryModels:${categoryId}`)) || []
+    list.push(id)
+    await store.set(`categoryModels:${categoryId}`, list)
+    return model
+  },
+
+  async updateModel(id: string, updates: Partial<StickerModel>): Promise<StickerModel | null> {
+    const existing = await store.get<StickerModel>(`model:${id}`)
+    if (!existing) return null
+    const updated = { ...existing, ...updates, updatedAt: new Date().toISOString() }
+    await store.set(`model:${id}`, updated)
+    return updated
+  },
+
+  async deleteModel(id: string): Promise<boolean> {
+    const existing = await store.get<StickerModel>(`model:${id}`)
+    if (!existing) return false
+    await store.del(`model:${id}`)
+    const list = (await store.get<string[]>(`categoryModels:${existing.categoryId}`)) || []
+    const filtered = list.filter((m) => m !== id)
+    await store.set(`categoryModels:${existing.categoryId}`, filtered)
+    return true
+  },
 }
 
 /* ---------------- Types Catégories ---------------- */
@@ -592,6 +641,17 @@ export type Category = {
   id: string
   name: string
   network: string | null
+  description: string | null
+  price: number
+  imagePath: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type StickerModel = {
+  id: string
+  categoryId: string
+  name: string
   description: string | null
   price: number
   imagePath: string | null
