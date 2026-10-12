@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ScrollSequence } from '@/components/scroll-sequence'
+import { ImageWithFallback } from '@/components/image-with-fallback'
 import { db, type Category } from '@/lib/db'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
@@ -267,16 +268,11 @@ export default async function LandingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
             {[1, 2, 3].map((n) => (
               <div key={n} className="aspect-video rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 flex items-center justify-center">
-                <img
+                <ImageWithFallback
                   src={`/model-photo-${n}.png`}
                   alt={`Modèle ${n}`}
+                  fallbackText={`Photo ${n} — ajoute /model-photo-${n}.png`}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    const el = e.currentTarget
-                    el.style.display = 'none'
-                    const parent = el.parentElement
-                    if (parent) parent.innerHTML = '<div class="text-zinc-600 text-sm">Photo ' + n + ' — ajoute /model-photo-' + n + '.png</div>'
-                  }}
                 />
               </div>
             ))}
