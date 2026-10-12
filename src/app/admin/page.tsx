@@ -1303,6 +1303,9 @@ export default function Home() {
             }
           }}
         />
+
+        {/* Section Catégories / Modèles */}
+        <CategoriesSection />
       </main>
 
       {/* Footer */}
@@ -2051,6 +2054,211 @@ function StickerPreview({
       dangerouslySetInnerHTML={{ __html: svgHtml }}
       style={{ aspectRatio: '1 / 1' }}
     />
+  )
+}
+
+/* ---------------- Section Catégories / Modèles ---------------- */
+
+type Category = {
+  id: string
+  name: string
+  network: string | null
+  description: string | null
+  price: number
+  imagePath: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+function CategoriesSection() {
+  const { toast } = useToast()
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState({
+    name: '',
+    network: '',
+    description: '',
+    price: '3000',
+    imagePath: '',
+  })
+
+  const fetchCategories = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/categories', { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        setCategories(data)
+      }
+    } catch {
+      // silencieux
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchCategories()
+  }, [fetchCategories])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const payload = {
+      name: form.name.trim(),
+      network: form.network.trim() || null,
+      description: form.description.trim() || null,
+      price: parseInt(form.price) || 3000,
+      imagePath: form.imagePath.trim() || null,
+    }
+    if (!payload.name) {
+      toast({ variant: 'destructive', title: 'Nom requis' })
+      return
+    }
+    try {
+      const url = editingId ? `/api/categories/${editingId}` : '/api/categories'
+      const method = editingId ? 'PUT' : 'POST'
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error('Erreur')
+      toast({ title: editingId ? 'Catégorie modifiée' : 'Catégorie créée' })
+      setShowForm(false)
+      setEditingId(null)
+      setForm({ name: '', network: '', description: '', price: '3000', imagePath: '' })
+      await fetchCategories()
+    } catch {
+      toast({ variant: 'destructive', title: 'Erreur' })
+    }
+  }
+
+  const handleEdit = (cat: Category) => {
+    setEditingId(cat.id)
+    setForm({
+      name: cat.name,
+      network: cat.network ?? '',
+      description: cat.description ?? '',
+      price: String(cat.price),
+      imagePath: cat.imagePath ?? '',
+    })
+    setShowForm(true)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Supprimer cette catégorie ?')) return
+    try {
+      await fetch(`/api/categories/${id}`, { method: 'DELETE' })
+      toast({ title: 'Catégorie supprimée' })
+      await fetchCategories()
+    } catch {
+      toast({ variant: 'destructive', title: 'Erreur' })
+    }
+  }
+
+  return (
+    <Card className="bg-white border-zinc-200 mt-4">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base font-semibold">Catégories & Modèles</CardTitle>
+          <CardDescription className="text-xs">
+            Gère les catégories affichées sur le site vitrine
+          </CardDescription>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => {
+            setEditingId(null)
+            setForm({ name: '', network: '', description: '', price: '3000', imagePath: '' })
+            setShowForm(!showForm)
+          }}
+        >
+          {showForm ? 'Annuler' : 'Nouvelle catégorie'}
+        </Button>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {showForm && (
+          <form onSubmit={handleSubmit} className="space-y-3 mb-4 p-3 rounded-lg border border-zinc-200 bg-zinc-50">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="cat-name">Nom *</Label>
+                <Input id="cat-name" placeholder="Ex: Google Reviews" value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              </div>
+              <div>
+                <Label htmlFor="cat-network">Réseau (optionnel)</Label>
+                <Input id="cat-network" placeholder="Ex: google" value={form.network}
+                  onChange={(e) => setForm({ ...form, network: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="cat-desc">Description</Label>
+              <Textarea id="cat-desc" placeholder="Description du modèle" rows={2} value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="cat-price">Prix (FCFA)</Label>
+                <Input id="cat-price" type="number" value={form.price}
+                  onChange={(e) => setForm({ ...form, price: e.target.value })} />
+              </div>
+              <div>
+                <Label htmlFor="cat-image">Chemin image (optionnel)</Label>
+                <Input id="cat-image" placeholder="/model-photo-1.png" value={form.imagePath}
+                  onChange={(e) => setForm({ ...form, imagePath: e.target.value })} />
+              </div>
+            </div>
+            <Button type="submit" size="sm">{editingId ? 'Enregistrer' : 'Créer'}</Button>
+          </form>
+        )}
+
+        {loading ? (
+          <p className="text-sm text-zinc-400 py-4 text-center">Chargement...</p>
+        ) : categories.length === 0 ? (
+          <p className="text-sm text-zinc-400 py-4 text-center">
+            Aucune catégorie. Clique sur "Nouvelle catégorie" pour en créer une.
+          </p>
+        ) : (
+          <div className="divide-y divide-zinc-100">
+            {categories.map((cat) => (
+              <div key={cat.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm">{cat.name}</span>
+                    {cat.network && <Badge variant="outline" className="text-xs">{cat.network}</Badge>}
+                    <span className="text-sm font-bold text-emerald-600">{cat.price.toLocaleString('fr-FR')} FCFA</span>
+                  </div>
+                  {cat.description && <p className="text-xs text-zinc-500 truncate">{cat.description}</p>}
+                </div>
+                <div className="flex gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => handleEdit(cat)} title="Modifier">
+                    <Pencil size={14} />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => handleDelete(cat.id)} title="Supprimer"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Section photos modèles */}
+        <div className="mt-4 pt-4 border-t border-zinc-100">
+          <p className="text-xs text-zinc-500 mb-2">Photos du site (remplace-les dans /public/) :</p>
+          <div className="flex gap-2">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="text-xs text-zinc-400 px-2 py-1 rounded bg-zinc-100">
+                model-photo-{n}.png
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
