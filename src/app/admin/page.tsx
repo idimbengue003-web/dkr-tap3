@@ -2246,19 +2246,143 @@ function CategoriesSection() {
           </div>
         )}
 
-        {/* Section photos modèles */}
-        <div className="mt-4 pt-4 border-t border-zinc-100">
-          <p className="text-xs text-zinc-500 mb-2">Photos du site (remplace-les dans /public/) :</p>
-          <div className="flex gap-2">
-            {[1, 2, 3].map((n) => (
-              <div key={n} className="text-xs text-zinc-400 px-2 py-1 rounded bg-zinc-100">
-                model-photo-{n}.png
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Section upload photos modèles */}
+        <ModelPhotosSection />
       </CardContent>
     </Card>
+  )
+}
+
+/* ---------------- Section Upload Photos Modèles ---------------- */
+
+function ModelPhotosSection() {
+  const { toast } = useToast()
+  const [photos, setPhotos] = useState<(string | null)[]>([null, null, null])
+  const [uploading, setUploading] = useState<number | null>(null)
+
+  const fetchPhotos = useCallback(async () => {
+    const results = await Promise.all(
+      [1, 2, 3].map(async (n) => {
+        try {
+          const res = await fetch(`/api/models/photos/${n}`, { cache: 'no-store' })
+          if (res.ok) {
+            const blob = await res.blob()
+            return URL.createObjectURL(blob)
+          }
+        } catch {}
+        return null
+      })
+    )
+    setPhotos(results)
+  }, [])
+
+  useEffect(() => {
+    fetchPhotos()
+  }, [fetchPhotos])
+
+  const handleUpload = async (slot: number, file: File) => {
+    setUploading(slot)
+    try {
+      // Redimensionner l'image
+      const fileDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error('Lecture impossible'))
+        reader.readAsDataURL(file)
+      })
+
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const i = new Image()
+        i.onload = () => resolve(i)
+        i.onerror = () => reject(new Error('Image invalide'))
+        i.src = fileDataUrl
+      })
+
+      let w = img.naturalWidth
+      let h = img.naturalHeight
+      const maxSize = 1024
+      if (Math.max(w, h) > maxSize) {
+        const ratio = maxSize / Math.max(w, h)
+        w = Math.round(w * ratio)
+        h = Math.round(h * ratio)
+      }
+
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas non supporté')
+      ctx.drawImage(img, 0, 0, w, h)
+
+      const outType = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
+      const quality = outType === 'image/jpeg' ? 0.85 : undefined
+      const dataUrl = canvas.toDataURL(outType, quality)
+
+      const res = await fetch(`/api/models/photos/${slot}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Erreur')
+      }
+      toast({ title: `Photo ${slot} mise à jour` })
+      await fetchPhotos()
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Upload impossible',
+        description: e instanceof Error ? e.message : 'Erreur',
+      })
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  return (
+    <div className="mt-4 pt-4 border-t border-zinc-100">
+      <p className="text-xs text-zinc-500 mb-3 font-medium">Photos du site vitrine (3 emplacements) :</p>
+      <div className="grid grid-cols-3 gap-3">
+        {[1, 2, 3].map((n) => (
+          <div key={n} className="text-center">
+            <div className="aspect-video rounded-lg overflow-hidden border border-zinc-200 bg-zinc-100 mb-2 flex items-center justify-center">
+              {photos[n - 1] ? (
+                <img src={photos[n - 1]!} alt={`Photo ${n}`} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs text-zinc-400">Photo {n}</span>
+              )}
+            </div>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              id={`photo-upload-${n}`}
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) handleUpload(n, f)
+                e.target.value = ''
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full text-xs"
+              disabled={uploading === n}
+              onClick={() => document.getElementById(`photo-upload-${n}`)?.click()}
+            >
+              {uploading === n ? (
+                <Loader2 size={12} className="mr-1 animate-spin" />
+              ) : null}
+              {photos[n - 1] ? 'Remplacer' : 'Upload'}
+            </Button>
+          </div>
+        ))}
+      </div>
+      <p className="text-[10px] text-zinc-400 text-center mt-2">
+        Ces photos s'affichent dans la section "Nos modèles" du site vitrine
+      </p>
+    </div>
   )
 }
 

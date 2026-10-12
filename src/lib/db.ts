@@ -537,6 +537,20 @@ export const db = {
     await store.set('categories:list', filtered)
     return true
   },
+
+  /* ============ PHOTOS MODÈLES DU SITE ============ */
+
+  async getModelPhoto(slot: number): Promise<string | null> {
+    return store.get<string>(`modelPhoto:${slot}`)
+  },
+
+  async setModelPhoto(slot: number, dataUrl: string): Promise<void> {
+    await store.set(`modelPhoto:${slot}`, dataUrl)
+  },
+
+  async getAllModelPhotos(): Promise<(string | null)[]> {
+    return Promise.all([1, 2, 3].map((n) => store.get<string>(`modelPhoto:${n}`)))
+  },
 }
 
 /* ---------------- Types Catégories ---------------- */

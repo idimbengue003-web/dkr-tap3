@@ -85,13 +85,17 @@ const TARIFS = [
   { qty: '20 cartes et +', price: '1 500', unit: 'FCFA / carte', desc: 'Meilleur tarif' },
 ]
 
-// Récupère les catégories côté serveur
+// Récupère les catégories et photos côté serveur
 async function getCategories(): Promise<Category[]> {
   try { return await db.listCategories() } catch { return [] }
+}
+async function getModelPhotos(): Promise<(string | null)[]> {
+  try { return await db.getAllModelPhotos() } catch { return [null, null, null] }
 }
 
 export default async function LandingPage() {
   const categories = await getCategories()
+  const modelPhotos = await getModelPhotos()
   return (
     <div className="min-h-screen flex flex-col bg-zinc-950 text-white">
       {/* ===== NAVBAR ===== */}
@@ -264,16 +268,19 @@ export default async function LandingPage() {
             Des designs professionnels pour chaque réseau social. Chaque sticker inclut la page d&apos;attente aux couleurs de la marque.
           </p>
 
-          {/* 3 photos placeholders — remplace-les par tes propres images */}
+          {/* 3 photos — récupérées depuis l'admin (KV) ou placeholder */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
-            {[1, 2, 3].map((n) => (
-              <div key={n} className="aspect-video rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 flex items-center justify-center">
-                <ImageWithFallback
-                  src={`/model-photo-${n}.png`}
-                  alt={`Modèle ${n}`}
-                  fallbackText={`Photo ${n} — ajoute /model-photo-${n}.png`}
-                  className="w-full h-full object-cover"
-                />
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="aspect-video rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 flex items-center justify-center">
+                {modelPhotos[i] ? (
+                  <img
+                    src={modelPhotos[i] as string}
+                    alt={`Modele ${i + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-zinc-600 text-sm">Photo {i + 1} — importe-la depuis l'admin</span>
+                )}
               </div>
             ))}
           </div>
