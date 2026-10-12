@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ScrollSequence } from '@/components/scroll-sequence'
+import { db, type Category } from '@/lib/db'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
 const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/scanbridge-logo.svg'
@@ -83,7 +84,13 @@ const TARIFS = [
   { qty: '20 cartes et +', price: '1 500', unit: 'FCFA / carte', desc: 'Meilleur tarif' },
 ]
 
-export default function LandingPage() {
+// Récupère les catégories côté serveur
+async function getCategories(): Promise<Category[]> {
+  try { return await db.listCategories() } catch { return [] }
+}
+
+export default async function LandingPage() {
+  const categories = await getCategories()
   return (
     <div className="min-h-screen flex flex-col bg-zinc-950 text-white">
       {/* ===== NAVBAR ===== */}
@@ -253,78 +260,80 @@ export default function LandingPage() {
             Nos modèles de stickers
           </h2>
           <p className="text-center text-zinc-400 mb-12 max-w-2xl mx-auto">
-            Des designs professionnels pour chaque réseau social. Chaque sticker inclut la page d\'attente aux couleurs de la marque.
+            Des designs professionnels pour chaque réseau social. Chaque sticker inclut la page d&apos;attente aux couleurs de la marque.
           </p>
 
-          {/* Image vitrine des modèles */}
-          <div className="mb-10 rounded-2xl overflow-hidden border border-zinc-800 shadow-xl max-w-2xl mx-auto">
-            <img
-              src="/models-showcase.png"
-              alt="Collection de stickers QR code avec différents réseaux sociaux"
-              className="w-full h-auto"
-              width={1024}
-              height={1024}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {MODELES.map((model) => (
-              <div
-                key={model.name}
-                className="group rounded-2xl border border-zinc-800 hover:border-zinc-600 transition-all overflow-hidden bg-zinc-900/50"
-              >
-                {/* Header avec couleur */}
-                <div
-                  className="h-24 flex items-center justify-center text-4xl"
-                  style={{ background: `radial-gradient(circle, ${model.color}25 0%, transparent 70%)` }}
-                >
-                  <img
-                    src={model.icon}
-                    alt={`Logo ${model.name}`}
-                    width={48}
-                    height={48}
-                    className="opacity-90"
-                  />
-                </div>
-
-                {/* Body */}
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-bold text-base">{model.name}</h3>
-                    <span
-                      className="text-lg font-bold"
-                      style={{ color: model.color }}
-                    >
-                      {model.price}<span className="text-xs text-zinc-500 font-normal"> FCFA</span>
-                    </span>
-                  </div>
-                  <p className="text-xs text-zinc-400 mb-3 leading-relaxed">{model.desc}</p>
-                  <ul className="space-y-1">
-                    {model.features.map((f, i) => (
-                      <li key={i} className="flex items-start gap-1.5 text-[11px] text-zinc-500">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={model.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
-                          <polyline points="20 6 9 17 4 12"/>
-                        </svg>
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* QR placeholder */}
-                <div className="px-4 pb-4">
-                  <div className="aspect-square max-w-[80px] mx-auto rounded-lg bg-white/90 p-2">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
-                      <rect x="3" y="3" width="7" height="7"/>
-                      <rect x="14" y="3" width="7" height="7"/>
-                      <rect x="3" y="14" width="7" height="7"/>
-                      <path d="M14 14h7v7h-7z"/>
-                    </svg>
-                  </div>
-                </div>
+          {/* 3 photos placeholders — remplace-les par tes propres images */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="aspect-video rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 flex items-center justify-center">
+                <img
+                  src={`/model-photo-${n}.png`}
+                  alt={`Modèle ${n}`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const el = e.currentTarget
+                    el.style.display = 'none'
+                    const parent = el.parentElement
+                    if (parent) parent.innerHTML = '<div class="text-zinc-600 text-sm">Photo ' + n + ' — ajoute /model-photo-' + n + '.png</div>'
+                  }}
+                />
               </div>
             ))}
           </div>
+
+          {/* Catégories dynamiques depuis l'admin (si elles existent) */}
+          {categories.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              {categories.map((cat) => (
+                <div key={cat.id} className="rounded-2xl border border-zinc-800 hover:border-zinc-600 transition-all overflow-hidden bg-zinc-900/50">
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-bold text-base">{cat.name}</h3>
+                      <span className="text-lg font-bold text-emerald-400">
+                        {cat.price.toLocaleString('fr-FR')}<span className="text-xs text-zinc-500 font-normal"> FCFA</span>
+                      </span>
+                    </div>
+                    {cat.description && (
+                      <p className="text-xs text-zinc-400 leading-relaxed mb-3">{cat.description}</p>
+                    )}
+                    {cat.imagePath && (
+                      <img src={cat.imagePath} alt={cat.name} className="w-full rounded-lg mb-2" />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {MODELES.map((model) => (
+                <div key={model.name} className="group rounded-2xl border border-zinc-800 hover:border-zinc-600 transition-all overflow-hidden bg-zinc-900/50">
+                  <div className="h-24 flex items-center justify-center" style={{ background: `radial-gradient(circle, ${model.color}25 0%, transparent 70%)` }}>
+                    <img src={model.icon} alt={`Logo ${model.name}`} width={48} height={48} className="opacity-90" />
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-bold text-base">{model.name}</h3>
+                      <span className="text-lg font-bold" style={{ color: model.color }}>
+                        {model.price}<span className="text-xs text-zinc-500 font-normal"> FCFA</span>
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-400 mb-3 leading-relaxed">{model.desc}</p>
+                    <ul className="space-y-1">
+                      {model.features.map((f, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-[11px] text-zinc-500">
+                          <svg width="12" height="12" viewBox="0 0 24 24" stroke={model.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="text-center mt-10">
             <a

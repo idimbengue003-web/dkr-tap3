@@ -472,4 +472,82 @@ export const db = {
       return e
     })
   },
+
+  /* ============ CATÉGORIES / MODÈLES ============ */
+
+  /**
+   * Crée une catégorie de modèle (ex: "Google Reviews", "TikTok", etc.)
+   * Chaque catégorie a un prix et peut avoir des modèles/photos associés.
+   */
+  async createCategory(input: {
+    name: string
+    network?: string | null
+    description?: string | null
+    price?: number
+    imagePath?: string | null
+  }): Promise<Category> {
+    const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    const now = new Date().toISOString()
+    const cat: Category = {
+      id,
+      name: input.name,
+      network: input.network ?? null,
+      description: input.description ?? null,
+      price: input.price ?? 3000,
+      imagePath: input.imagePath ?? null,
+      createdAt: now,
+      updatedAt: now,
+    }
+    await store.set(`category:${id}`, cat)
+    const list = (await store.get<string[]>('categories:list')) || []
+    list.unshift(id)
+    await store.set('categories:list', list)
+    return cat
+  },
+
+  async listCategories(): Promise<Category[]> {
+    const ids = (await store.get<string[]>('categories:list')) || []
+    if (!ids.length) return []
+    const cats = await store.mget<Category>(...ids.map((id) => `category:${id}`))
+    return cats.filter(Boolean) as Category[]
+  },
+
+  async getCategory(id: string): Promise<Category | null> {
+    return store.get<Category>(`category:${id}`)
+  },
+
+  async updateCategory(id: string, updates: Partial<Category>): Promise<Category | null> {
+    const existing = await store.get<Category>(`category:${id}`)
+    if (!existing) return null
+    const updated: Category = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    }
+    await store.set(`category:${id}`, updated)
+    return updated
+  },
+
+  async deleteCategory(id: string): Promise<boolean> {
+    const existing = await store.get<Category>(`category:${id}`)
+    if (!existing) return false
+    await store.del(`category:${id}`)
+    const list = (await store.get<string[]>('categories:list')) || []
+    const filtered = list.filter((c) => c !== id)
+    await store.set('categories:list', filtered)
+    return true
+  },
+}
+
+/* ---------------- Types Catégories ---------------- */
+
+export type Category = {
+  id: string
+  name: string
+  network: string | null
+  description: string | null
+  price: number
+  imagePath: string | null
+  createdAt: string
+  updatedAt: string
 }
