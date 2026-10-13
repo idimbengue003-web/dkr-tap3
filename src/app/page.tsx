@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ScrollSequence } from '@/components/scroll-sequence'
 import { ImageWithFallback } from '@/components/image-with-fallback'
+import { CategoryShop } from '@/components/category-shop'
 import { db, type Category } from '@/lib/db'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
@@ -285,28 +286,9 @@ export default async function LandingPage() {
             ))}
           </div>
 
-          {/* Catégories dynamiques depuis l'admin (si elles existent) */}
+          {/* Catégories cliquables → ouvre les modèles + commande */}
           {categories.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-              {categories.map((cat) => (
-                <div key={cat.id} className="rounded-2xl border border-zinc-800 hover:border-zinc-600 transition-all overflow-hidden bg-zinc-900/50">
-                  <div className="p-5">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-bold text-base">{cat.name}</h3>
-                      <span className="text-lg font-bold text-emerald-400">
-                        {cat.price.toLocaleString('fr-FR')}<span className="text-xs text-zinc-500 font-normal"> FCFA</span>
-                      </span>
-                    </div>
-                    {cat.description && (
-                      <p className="text-xs text-zinc-400 leading-relaxed mb-3">{cat.description}</p>
-                    )}
-                    {cat.imagePath && (
-                      <img src={cat.imagePath} alt={cat.name} className="w-full rounded-lg mb-2" />
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <CategoryShop categories={categories} />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {MODELES.map((model) => (
