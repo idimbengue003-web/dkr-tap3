@@ -24,7 +24,16 @@ type Model = {
 }
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
-const WAVE_URL = process.env.NEXT_PUBLIC_WAVE_PAYMENT_URL || '#'
+const WAVE_BASE_URL = process.env.NEXT_PUBLIC_WAVE_PAYMENT_URL || '#'
+
+// Construit le lien Wave avec le montant exact à payer
+// Format Wave : https://pay.wave.com/m/.../c/sn/?amount=XXXX
+function buildWaveUrl(amount: number): string {
+  if (WAVE_BASE_URL === '#') return '#'
+  // Retirer le slash final si présent, puis ajouter ?amount=
+  const base = WAVE_BASE_URL.replace(/\/$/, '')
+  return `${base}?amount=${amount}`
+}
 
 // Prix dégressifs par quantité
 function getUnitPrice(basePrice: number, qty: number): number {
@@ -251,9 +260,9 @@ export function CategoryShop({ categories }: { categories: Category[] }) {
                   <div className="flex justify-between"><span>20 cartes et +</span><span>{Math.round(orderModal.price * 0.5).toLocaleString('fr-FR')} FCFA/carte</span></div>
                 </div>
 
-                {/* Bouton Wave */}
+                {/* Bouton Wave — montant exact dynamique */}
                 <a
-                  href={WAVE_URL}
+                  href={buildWaveUrl(totalPrice)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 text-black font-bold text-lg hover:bg-emerald-400 transition-colors"
