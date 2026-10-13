@@ -633,6 +633,70 @@ export const db = {
     await store.set(`categoryModels:${existing.categoryId}`, filtered)
     return true
   },
+
+  /* ============ COMMANDES (VENTES) ============ */
+
+  async createOrder(input: OrderInput): Promise<Order> {
+    const id = `ord_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    const now = new Date().toISOString()
+    const order: Order = {
+      id,
+      items: input.items,
+      totalQty: input.totalQty,
+      totalBefore: input.totalBefore,
+      totalAfter: input.totalAfter,
+      discountPct: input.discountPct,
+      status: 'pending',
+      paymentMethod: input.paymentMethod ?? 'wave',
+      customerName: input.customerName ?? null,
+      customerPhone: input.customerPhone ?? null,
+      customerNote: input.customerNote ?? null,
+      createdAt: now,
+      updatedAt: now,
+      paidAt: null,
+    }
+    await store.set(`order:${id}`, order)
+    // Liste simple des IDs, plus récent en premier
+    const list = (await store.get<string[]>('orders:list')) || []
+    list.unshift(id)
+    await store.set('orders:list', list)
+    return order
+  },
+
+  async listOrders(): Promise<Order[]> {
+    const ids = (await store.get<string[]>('orders:list')) || []
+    if (!ids.length) return []
+    const orders = await store.mget<Order>(...ids.map((id) => `order:${id}`))
+    return orders.filter(Boolean) as Order[]
+  },
+
+  async getOrder(id: string): Promise<Order | null> {
+    return store.get<Order>(`order:${id}`)
+  },
+
+  async updateOrderStatus(id: string, status: OrderStatus, extra?: { paidAt?: string }): Promise<Order | null> {
+    const existing = await store.get<Order>(`order:${id}`)
+    if (!existing) return null
+    const now = new Date().toISOString()
+    const updated: Order = {
+      ...existing,
+      status,
+      paidAt: status === 'paid' && !existing.paidAt ? (extra?.paidAt ?? now) : existing.paidAt,
+      updatedAt: now,
+    }
+    await store.set(`order:${id}`, updated)
+    return updated
+  },
+
+  async deleteOrder(id: string): Promise<boolean> {
+    const existing = await store.get<Order>(`order:${id}`)
+    if (!existing) return false
+    await store.del(`order:${id}`)
+    const list = (await store.get<string[]>('orders:list')) || []
+    const filtered = list.filter((o) => o !== id)
+    await store.set('orders:list', filtered)
+    return true
+  },
 }
 
 /* ---------------- Types Catégories ---------------- */
@@ -657,4 +721,50 @@ export type StickerModel = {
   imagePath: string | null
   createdAt: string
   updatedAt: string
+}
+
+/* ---------------- Types Commandes ---------------- */
+
+export type OrderStatus = 'pending' | 'paid' | 'confirmed' | 'cancelled'
+
+export type OrderItem = {
+  /** Clé unique 'cat:<id>' ou 'mod:<id>' */
+  key: string
+  name: string
+  parentName?: string
+  /** Prix unitaire de base (avant remise) */
+  price: number
+  /** Prix unitaire après remise volume */
+  unitPrice: number
+  qty: number
+  imagePath: string | null
+}
+
+export type Order = {
+  id: string
+  items: OrderItem[]
+  totalQty: number
+  totalBefore: number
+  totalAfter: number
+  discountPct: number
+  status: OrderStatus
+  paymentMethod: 'wave' | 'call' | 'other'
+  customerName: string | null
+  customerPhone: string | null
+  customerNote: string | null
+  createdAt: string
+  updatedAt: string
+  paidAt: string | null
+}
+
+export type OrderInput = {
+  items: OrderItem[]
+  totalQty: number
+  totalBefore: number
+  totalAfter: number
+  discountPct: number
+  paymentMethod?: 'wave' | 'call' | 'other'
+  customerName?: string | null
+  customerPhone?: string | null
+  customerNote?: string | null
 }

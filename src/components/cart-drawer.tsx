@@ -72,6 +72,10 @@ type CartAddEvent = {
 export function CartDrawer({ categories, open, onOpenChange }: Props) {
   const [cart, setCart] = useState<CartState>({})
   const [justAdded, setJustAdded] = useState<string | null>(null)
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [submittingOrder, setSubmittingOrder] = useState(false)
+  const [lastOrderId, setLastOrderId] = useState<string | null>(null)
 
   // Charger le panier depuis localStorage au montage
   useEffect(() => {
@@ -281,13 +285,26 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                   </span>
                 )}
               </div>
-              <button
-                onClick={() => onOpenChange(false)}
-                className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center hover:bg-zinc-700"
-                aria-label="Fermer le panier"
-              >
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-2">
+                {totalQty > 0 && (
+                  <button
+                    onClick={clearCart}
+                    className="text-xs text-zinc-400 hover:text-red-400 flex items-center gap-1 px-2 py-1 rounded-md hover:bg-zinc-800 transition-colors"
+                    aria-label="Vider le panier"
+                    title="Vider le panier"
+                  >
+                    <Trash2 size={14} />
+                    <span className="hidden sm:inline">Vider</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => onOpenChange(false)}
+                  className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center hover:bg-zinc-700"
+                  aria-label="Fermer le panier"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             {/* Bandeau Pack Revendeur */}
@@ -448,16 +465,89 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                     </div>
                   </div>
 
-                  {/* Bouton Wave */}
-                  <a
-                    href={buildWaveUrl(totalAfter)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-emerald-500 text-black font-bold text-lg hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20"
+                  {/* Infos revendeur (optionnel mais recommandé) */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Votre nom (recommandé)"
+                      className="px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500"
+                    />
+                    <input
+                      type="tel"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="Téléphone (recommandé)"
+                      className="px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  {/* Bouton Wave : crée la commande serveur puis redirige */}
+                  <button
+                    onClick={async () => {
+                      if (submittingOrder) return
+                      setSubmittingOrder(true)
+                      try {
+                        // Préparer les items pour l'API
+                        const apiItems = items.map((it) => {
+                          const unitPrice = getUnitPrice(it.price, totalQty)
+                          return {
+                            key: it.key,
+                            name: it.name,
+                            parentName: it.parentName,
+                            price: it.price,
+                            unitPrice,
+                            qty: it.qty,
+                            imagePath: it.imagePath,
+                          }
+                        })
+                        const res = await fetch('/api/orders', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            items: apiItems,
+                            totalQty,
+                            totalBefore,
+                            totalAfter,
+                            discountPct,
+                            paymentMethod: 'wave',
+                            customerName: customerName || null,
+                            customerPhone: customerPhone || null,
+                          }),
+                        })
+                        if (!res.ok) {
+                          const err = await res.json().catch(() => ({}))
+                          throw new Error(err.error || 'Échec création commande')
+                        }
+                        const order = await res.json()
+                        setLastOrderId(order.id)
+                        // Rediriger vers Wave avec le montant exact
+                        const waveUrl = buildWaveUrl(totalAfter)
+                        if (waveUrl !== '#') {
+                          window.open(waveUrl, '_blank', 'noopener,noreferrer')
+                        }
+                      } catch (e) {
+                        alert('Erreur lors de la création de la commande : ' + (e as Error).message)
+                      } finally {
+                        setSubmittingOrder(false)
+                      }
+                    }}
+                    disabled={submittingOrder}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-emerald-500 text-black font-bold text-lg hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <ShoppingBag size={20} />
-                    Payer {totalAfter.toLocaleString('fr-FR')} FCFA avec Wave
-                  </a>
+                    {submittingOrder
+                      ? 'Création de la commande…'
+                      : `Payer ${totalAfter.toLocaleString('fr-FR')} FCFA avec Wave`}
+                  </button>
+
+                  {lastOrderId && !submittingOrder && (
+                    <p className="text-xs text-emerald-400 text-center flex items-center justify-center gap-1.5">
+                      <CheckCircle2 size={12} />
+                      Commande <strong>{lastOrderId}</strong> enregistrée. Confirmez-la au {BRAND_PHONE}.
+                    </p>
+                  )}
 
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-zinc-500">

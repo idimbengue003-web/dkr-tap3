@@ -50,6 +50,7 @@ import {
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { ScannerModal } from '@/components/scanner/scanner-modal'
+import { OrdersSection } from '@/components/admin/orders-section'
 import {
   renderStickerSvg,
   detectNetwork,
@@ -1309,6 +1310,9 @@ export default function Home() {
 
         {/* Section Annonces */}
         <AnnoncesSection />
+
+        {/* Section Commandes reçues (panier revendeur) */}
+        <OrdersSection />
       </main>
 
       {/* Footer */}
