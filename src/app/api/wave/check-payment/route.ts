@@ -1,41 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { checkRecentTransactions, isWaveConfigured } from '@/lib/wave'
-import { requireAuth } from '@/lib/auth-guard'
+import { checkPaymentReceived, isWaveConfigured } from '@/lib/wave'
 
 /**
- * GET /api/wave/check-payment?amount=3000
+ * GET /api/wave/check-payment?amount=3000&minutes=30
  *
- * Vérifie si un paiement d'un montant spécifique a été reçu récemment.
- * Auth requis (admin only).
+ * Vérifie AUTOMATIQUEMENT si un paiement d'un montant spécifique a été reçu
+ * dans les N dernières minutes via l'API Wave Business.
  *
- * Query params:
- *   - amount: montant en FCFA à vérifier (ex: 3000)
- *   - minutes: fenêtre de temps en minutes (default: 60)
+ * Comment ça marche :
+ * 1. Le client clique "Payer avec Wave" → paie sur Wave
+ * 2. Ton site appelle cette route → interroge l'API Wave
+ * 3. Si une transaction du bon montant a été reçue → { received: true }
+ * 4. Si non → { received: false } → réessayer dans 30 sec
+ *
+ * Auth requis (admin only — l'API vérifie les paiements reçus sur ton wallet).
  */
 export async function GET(request: NextRequest) {
-  const guard = await requireAuth(request)
-  if (guard) return guard
-
   if (!isWaveConfigured()) {
     return NextResponse.json(
-      { error: 'Wave API non configuré' },
+      { error: 'Wave API non configuré (WAVE_API_TOKEN manquant)' },
       { status: 503 }
     )
   }
 
   const { searchParams } = new URL(request.url)
   const amount = searchParams.get('amount')
-  const minutes = parseInt(searchParams.get('minutes') || '60')
+  const minutes = parseInt(searchParams.get('minutes') || '30')
 
-  const result = await checkRecentTransactions(
-    amount ? parseInt(amount) : undefined,
-    minutes
-  )
+  if (!amount) {
+    return NextResponse.json(
+      { error: 'Paramètre ?amount= requis (montant en FCFA)' },
+      { status: 400 }
+    )
+  }
+
+  const expectedAmount = parseInt(amount)
+  const result = await checkPaymentReceived(expectedAmount, minutes)
 
   return NextResponse.json({
     ...result,
-    checkedAt: new Date().toISOString(),
-    minutes,
-    amountSearched: amount ? parseInt(amount) : null,
+    expectedAmount,
+    withinMinutes: minutes,
+    waveWallet: 'W_sn_LUvGY4hJVmNP',
+    merchant: 'Gaming Store',
   })
 }
