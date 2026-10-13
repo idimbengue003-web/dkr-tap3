@@ -1,55 +1,30 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# .gitignore racine — protège les fichiers système/métas
+# (le .gitignore du projet est dans dkr-tap/.gitignore)
 
-# dependencies
-node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# Fichiers sensibles
+.env
+.env.local
+.env.*.local
 
-# testing
-/coverage
+# Build artifacts
+.next/
+out/
+build/
 
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Logs
+*.log
+dev.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-!.env.example
+# Dépendances (à la racine)
+node_modules/
 
-# vercel
-.vercel
+# Cache
+.DS_Store
+*.pem
 
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-local-*
-.claude
-.z-ai-config
-*.log
-dev.log
-dev.out.log
-test
-prompt
-
-server.log
-# Skills directory
-/skills/
+# Tool results (sandbox)
+tool-results/
+upload/
