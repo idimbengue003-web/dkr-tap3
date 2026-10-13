@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Minus, Plus, ShoppingBag } from 'lucide-react'
+import { X, Minus, Plus, ShoppingBag, ShoppingCart, Check } from 'lucide-react'
+import { addToCart } from '@/components/cart-drawer'
 
 type Category = {
   id: string
@@ -48,6 +49,7 @@ export function CategoryShop({ categories }: { categories: Category[] }) {
   const [loadingModels, setLoadingModels] = useState(false)
   const [orderModal, setOrderModal] = useState<{ name: string; price: number; image: string | null } | null>(null)
   const [qty, setQty] = useState(1)
+  const [addedModelId, setAddedModelId] = useState<string | null>(null)
 
   const openCategory = async (cat: Category) => {
     setSelectedCat(cat)
@@ -151,7 +153,9 @@ export function CategoryShop({ categories }: { categories: Category[] }) {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {models.map((m) => (
+                    {models.map((m) => {
+                      const isAdded = addedModelId === m.id
+                      return (
                       <div key={m.id} className="rounded-xl border border-zinc-800 overflow-hidden hover:border-zinc-600 transition-colors">
                         {m.imagePath && (
                           <div className="aspect-video bg-zinc-800">
@@ -161,21 +165,45 @@ export function CategoryShop({ categories }: { categories: Category[] }) {
                         <div className="p-3">
                           <h4 className="font-semibold text-sm mb-1">{m.name}</h4>
                           {m.description && <p className="text-xs text-zinc-400 mb-2">{m.description}</p>}
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-2">
                             <span className="text-emerald-400 font-bold">{m.price.toLocaleString('fr-FR')} FCFA</span>
-                            <button
-                              onClick={() => {
-                                openOrderModal(m.name, m.price, m.imagePath)
-                                setSelectedCat(null)
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-500 text-black text-xs font-semibold hover:bg-emerald-400"
-                            >
-                              Commander
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => {
+                                  addToCart({
+                                    key: `mod:${m.id}`,
+                                    name: m.name,
+                                    parentName: selectedCat.name,
+                                    price: m.price,
+                                    imagePath: m.imagePath,
+                                  })
+                                  setAddedModelId(m.id)
+                                  setTimeout(() => setAddedModelId((cur) => (cur === m.id ? null : cur)), 1500)
+                                }}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors ${
+                                  isAdded
+                                    ? 'bg-emerald-500 text-black'
+                                    : 'bg-zinc-800 text-emerald-400 hover:bg-zinc-700'
+                                }`}
+                                aria-label="Ajouter au panier"
+                              >
+                                {isAdded ? <><Check size={12} /> Ajouté</> : <><ShoppingCart size={12} /> Panier</>}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  openOrderModal(m.name, m.price, m.imagePath)
+                                  setSelectedCat(null)
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-500 text-black text-xs font-semibold hover:bg-emerald-400"
+                              >
+                                Commander
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>

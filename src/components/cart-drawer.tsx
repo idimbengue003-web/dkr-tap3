@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Minus, Plus, ShoppingBag, Trash2, Sparkles } from 'lucide-react'
+import { X, Minus, Plus, ShoppingBag, Trash2, Sparkles, CheckCircle2 } from 'lucide-react'
 
 type Category = {
   id: string
@@ -19,9 +19,23 @@ type Props = {
   onOpenChange: (open: boolean) => void
 }
 
+type CartItem = {
+  /** Clé unique: 'cat:<id>' pour catégorie entière, 'mod:<id>' pour modèle individuel */
+  key: string
+  /** Nom affiché dans le panier */
+  name: string
+  /** Nom de la catégorie parente (pour les modèles) */
+  parentName?: string
+  price: number
+  imagePath: string | null
+  qty: number
+}
+
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
 const BRAND_PHONE = process.env.NEXT_PUBLIC_BRAND_PHONE || '78 927 12 96'
 const WAVE_BASE_URL = process.env.NEXT_PUBLIC_WAVE_PAYMENT_URL || '#'
+
+const STORAGE_KEY = 'dkr-tap-cart-v2'
 
 // Prix dégressifs par quantité (basé sur le TOTAL des cartes du panier)
 function getUnitPrice(basePrice: number, totalQty: number): number {
@@ -42,15 +56,22 @@ function buildWaveUrl(amount: number): string {
   return `${base}?amount=${amount}`
 }
 
-const STORAGE_KEY = 'dkr-tap-cart-v1'
+type CartState = Record<string, CartItem>
 
-// Preset Pack Revendeur : 5 Instagram, 2 Snapchat, 3 Facebook, 2 YouTube
-const PACK_REVENDEUR: Record<string, number> = {}
-
-type CartState = Record<string, number> // categoryId -> qty
+// Événement personnalisé pour ajouter un item depuis d'autres composants
+// Usage: window.dispatchEvent(new CustomEvent('cart:add', { detail: { ...item } }))
+type CartAddEvent = {
+  key: string
+  name: string
+  parentName?: string
+  price: number
+  imagePath: string | null
+  qty?: number
+}
 
 export function CartDrawer({ categories, open, onOpenChange }: Props) {
   const [cart, setCart] = useState<CartState>({})
+  const [justAdded, setJustAdded] = useState<string | null>(null)
 
   // Charger le panier depuis localStorage au montage
   useEffect(() => {
@@ -72,6 +93,33 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
     } catch {}
   }, [cart])
 
+  // Écouter les événements cart:add depuis d'autres composants (ex: CategoryShop)
+  useEffect(() => {
+    const onAdd = (e: Event) => {
+      const detail = (e as CustomEvent<CartAddEvent>).detail
+      if (!detail || !detail.key) return
+      setCart((prev) => {
+        const next = { ...prev }
+        const existing = next[detail.key]
+        const newQty = (existing?.qty || 0) + (detail.qty || 1)
+        next[detail.key] = {
+          key: detail.key,
+          name: detail.name,
+          parentName: detail.parentName,
+          price: detail.price,
+          imagePath: detail.imagePath,
+          qty: Math.min(99, newQty),
+        }
+        return next
+      })
+      // Petit feedback visuel
+      setJustAdded(detail.key)
+      setTimeout(() => setJustAdded((k) => (k === detail.key ? null : k)), 1500)
+    }
+    window.addEventListener('cart:add', onAdd as EventListener)
+    return () => window.removeEventListener('cart:add', onAdd as EventListener)
+  }, [])
+
   // Bloquer le scroll body quand le drawer est ouvert
   useEffect(() => {
     if (open) {
@@ -84,55 +132,52 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
     }
   }, [open])
 
-  // Identifier les catégories par nom (pour le preset Pack Revendeur)
-  const findCatIdByName = useCallback(
-    (name: string) => categories.find((c) => c.name.toLowerCase().includes(name.toLowerCase()))?.id,
-    [categories]
-  )
-
   // Calcul du total quantité + total prix
   const { totalQty, items, totalBefore, totalAfter, discountPct } = useMemo(() => {
     let totalQty = 0
     let totalBefore = 0
     let totalAfter = 0
 
-    const items = categories
-      .filter((c) => (cart[c.id] || 0) > 0)
-      .map((c) => {
-        const qty = cart[c.id] || 0
-        totalQty += qty
-        return {
-          ...c,
-          qty,
-          unitPrice: c.price, // sera recalculé après avoir totalQty
-        }
-      })
-
-    // 2e passe : appliquer la remise sur chaque ligne
+    // D'abord calculer le total qty
+    const items = Object.values(cart)
     items.forEach((it) => {
-      it.unitPrice = getUnitPrice(it.price, totalQty)
+      totalQty += it.qty
+    })
+
+    // Ensuite appliquer la remise sur chaque item
+    items.forEach((it) => {
+      const unitPrice = getUnitPrice(it.price, totalQty)
       totalBefore += it.price * it.qty
-      totalAfter += it.unitPrice * it.qty
+      totalAfter += unitPrice * it.qty
     })
 
     const discountPct = getDiscountPct(totalQty)
     return { totalQty, items, totalBefore, totalAfter, discountPct }
-  }, [cart, categories])
+  }, [cart])
 
-  const setQty = (catId: string, qty: number) => {
+  // Identifier les catégories par nom (pour le preset Pack Revendeur)
+  const findCatIdByName = useCallback(
+    (name: string) => categories.find((c) => c.name.toLowerCase().includes(name.toLowerCase()))?.id,
+    [categories]
+  )
+
+  const setQty = (key: string, qty: number) => {
     setCart((prev) => {
       const next = { ...prev }
       if (qty <= 0) {
-        delete next[catId]
+        delete next[key]
       } else {
-        next[catId] = Math.min(99, qty)
+        const existing = next[key]
+        if (existing) {
+          next[key] = { ...existing, qty: Math.min(99, qty) }
+        }
       }
       return next
     })
   }
 
-  const inc = (catId: string) => setQty(catId, (cart[catId] || 0) + 1)
-  const dec = (catId: string) => setQty(catId, (cart[catId] || 0) - 1)
+  const inc = (key: string) => setQty(key, (cart[key]?.qty || 0) + 1)
+  const dec = (key: string) => setQty(key, (cart[key]?.qty || 0) - 1)
 
   const applyPackRevendeur = () => {
     const next: CartState = {}
@@ -141,17 +186,42 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
     const fbId = findCatIdByName('Facebook')
     const ytId = findCatIdByName('YouTube')
 
-    if (igId) next[igId] = 5
-    if (snapId) next[snapId] = 2
-    if (fbId) next[fbId] = 3
-    if (ytId) next[ytId] = 2
+    const buildCatItem = (catId: string, qty: number): CartItem | null => {
+      const cat = categories.find((c) => c.id === catId)
+      if (!cat) return null
+      return {
+        key: `cat:${cat.id}`,
+        name: cat.name,
+        price: cat.price,
+        imagePath: cat.imagePath,
+        qty,
+      }
+    }
 
-    // Si aucune catégorie n'a matché par nom, on prend les 4 premières au hasard
+    if (igId) {
+      const it = buildCatItem(igId, 5)
+      if (it) next[it.key] = it
+    }
+    if (snapId) {
+      const it = buildCatItem(snapId, 2)
+      if (it) next[it.key] = it
+    }
+    if (fbId) {
+      const it = buildCatItem(fbId, 3)
+      if (it) next[it.key] = it
+    }
+    if (ytId) {
+      const it = buildCatItem(ytId, 2)
+      if (it) next[it.key] = it
+    }
+
+    // Fallback : prendre les 4 premières catégories
     if (Object.keys(next).length === 0 && categories.length >= 4) {
-      next[categories[0].id] = 5
-      next[categories[1].id] = 2
-      next[categories[2].id] = 3
-      next[categories[3].id] = 2
+      const presets = [5, 2, 3, 2]
+      categories.slice(0, 4).forEach((c, i) => {
+        const it = buildCatItem(c.id, presets[i])
+        if (it) next[it.key] = it
+      })
     }
 
     setCart(next)
@@ -160,6 +230,16 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
   const clearCart = () => {
     if (confirm('Vider le panier ?')) setCart({})
   }
+
+  // Trier les items : modèles d'abord (alpha par catégorie parente), puis catégories seules
+  const sortedItems = useMemo(() => {
+    return [...items].sort((a, b) => {
+      const aParent = a.parentName || ''
+      const bParent = b.parentName || ''
+      if (aParent !== bParent) return aParent.localeCompare(bParent)
+      return a.name.localeCompare(b.name)
+    })
+  }, [items])
 
   // Palier suivant pour atteindre la remise supérieure
   const nextTier = useMemo(() => {
@@ -232,73 +312,91 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
               </div>
             </div>
 
-            {/* Liste des catégories avec sélecteurs de quantité */}
+            {/* Liste des items */}
             <div className="flex-1 overflow-y-auto p-4">
-              {categories.length === 0 ? (
-                <p className="text-center text-zinc-500 py-12">
-                  Aucune catégorie disponible pour l'instant.
-                </p>
+              {sortedItems.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-zinc-800 flex items-center justify-center text-zinc-500">
+                    <ShoppingBag size={28} />
+                  </div>
+                  <p className="text-zinc-400 mb-1">Votre panier est vide</p>
+                  <p className="text-xs text-zinc-600">
+                    Cliquez sur « Ajouter au panier » sur un modèle, ou utilisez le Pack Revendeur ci-dessus.
+                  </p>
+                </div>
               ) : (
-                <div className="space-y-2">
-                  {categories.map((cat) => {
-                    const qty = cart[cat.id] || 0
-                    const isActive = qty > 0
-                    return (
-                      <div
-                        key={cat.id}
-                        className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
-                          isActive ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-zinc-800'
-                        }`}
-                      >
-                        {/* Image / icône */}
-                        <div className="w-12 h-12 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden">
-                          {cat.imagePath ? (
-                            <img src={cat.imagePath} alt={cat.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-xl">📦</span>
-                          )}
-                        </div>
-
-                        {/* Infos */}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm truncate">{cat.name}</p>
-                          <p className="text-xs text-zinc-500">
-                            {cat.price.toLocaleString('fr-FR')} FCFA / carte
+                <div className="space-y-3">
+                  {/* Grouper par catégorie parente */}
+                  {(() => {
+                    // Construire les groupes
+                    const groups: { parentName: string; items: CartItem[] }[] = []
+                    sortedItems.forEach((it) => {
+                      const parent = it.parentName || '_cat'
+                      let g = groups.find((g) => g.parentName === parent)
+                      if (!g) {
+                        g = { parentName: parent, items: [] }
+                        groups.push(g)
+                      }
+                      g.items.push(it)
+                    })
+                    return groups.map((g) => (
+                      <div key={g.parentName}>
+                        {g.parentName !== '_cat' && (
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5 px-1">
+                            {g.parentName}
                           </p>
-                        </div>
-
-                        {/* Sélecteur quantité */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          {qty > 0 ? (
-                            <>
-                              <button
-                                onClick={() => dec(cat.id)}
-                                className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center hover:bg-zinc-700"
-                                aria-label="Retirer"
+                        )}
+                        <div className="space-y-2">
+                          {g.items.map((it) => {
+                            const unitPrice = getUnitPrice(it.price, totalQty)
+                            const isJustAdded = justAdded === it.key
+                            return (
+                              <div
+                                key={it.key}
+                                className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
+                                  isJustAdded ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-800 bg-zinc-900/50'
+                                }`}
                               >
-                                {qty === 1 ? <Trash2 size={14} className="text-red-400" /> : <Minus size={14} />}
-                              </button>
-                              <span className="text-lg font-bold w-8 text-center">{qty}</span>
-                              <button
-                                onClick={() => inc(cat.id)}
-                                className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center hover:bg-zinc-700"
-                                aria-label="Ajouter"
-                              >
-                                <Plus size={14} />
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              onClick={() => inc(cat.id)}
-                              className="px-3 h-8 rounded-lg bg-zinc-800 flex items-center gap-1 text-xs font-semibold hover:bg-zinc-700"
-                            >
-                              <Plus size={14} /> Ajouter
-                            </button>
-                          )}
+                                <div className="w-12 h-12 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden">
+                                  {it.imagePath ? (
+                                    <img src={it.imagePath} alt={it.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-xl">📦</span>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-sm truncate">{it.name}</p>
+                                  <p className="text-xs text-zinc-500">
+                                    {unitPrice.toLocaleString('fr-FR')} FCFA / carte
+                                    {discountPct > 0 && (
+                                      <span className="text-emerald-400 ml-1">(-{discountPct}%)</span>
+                                    )}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    onClick={() => dec(it.key)}
+                                    className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center hover:bg-zinc-700"
+                                    aria-label="Retirer"
+                                  >
+                                    {it.qty === 1 ? <Trash2 size={14} className="text-red-400" /> : <Minus size={14} />}
+                                  </button>
+                                  <span className="text-lg font-bold w-8 text-center">{it.qty}</span>
+                                  <button
+                                    onClick={() => inc(it.key)}
+                                    className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center hover:bg-zinc-700"
+                                    aria-label="Ajouter"
+                                  >
+                                    <Plus size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
-                    )
-                  })}
+                    ))
+                  })()}
                 </div>
               )}
             </div>
@@ -307,7 +405,7 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
             <div className="border-t border-zinc-800 p-4 space-y-3">
               {totalQty === 0 ? (
                 <p className="text-center text-zinc-500 text-sm py-2">
-                  Sélectionnez vos catégories pour activer la remise volume.
+                  Sélectionnez vos modèles pour activer la remise volume.
                 </p>
               ) : (
                 <>
@@ -380,4 +478,34 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
       )}
     </AnimatePresence>
   )
+}
+
+/** Helper à utiliser depuis d'autres composants client pour ajouter un item au panier */
+export function addToCart(item: Omit<CartItem, 'qty'> & { qty?: number }) {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(
+    new CustomEvent('cart:add', {
+      detail: {
+        key: item.key,
+        name: item.name,
+        parentName: item.parentName,
+        price: item.price,
+        imagePath: item.imagePath,
+        qty: item.qty || 1,
+      },
+    })
+  )
+}
+
+/** Helper pour récupérer le nombre total de cartes (utile pour la navbar) */
+export function getCartTotalQty(): number {
+  if (typeof window === 'undefined') return 0
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (!saved) return 0
+    const parsed: CartState = JSON.parse(saved)
+    return Object.values(parsed).reduce((s, it) => s + (it.qty || 0), 0)
+  } catch {
+    return 0
+  }
 }
