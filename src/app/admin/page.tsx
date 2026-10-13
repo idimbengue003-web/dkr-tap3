@@ -1306,6 +1306,9 @@ export default function Home() {
 
         {/* Section Catégories / Modèles */}
         <CategoriesSection />
+
+        {/* Section Annonces */}
+        <AnnoncesSection />
       </main>
 
       {/* Footer */}
@@ -2414,6 +2417,335 @@ function CategoriesSection() {
 }
 
 /* ---------------- Section Upload Photos Modèles ---------------- */
+
+/* ---------------- Section Annonces ---------------- */
+
+function AnnoncesSection() {
+  const { toast } = useToast()
+  const [annonces, setAnnonces] = useState<StickerModel[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [form, setForm] = useState({
+    categoryId: '',
+    name: '',
+    description: '',
+    price: '3000',
+    imagePath: '',
+  })
+
+  type StickerModel = {
+    id: string
+    categoryId: string
+    name: string
+    description: string | null
+    price: number
+    imagePath: string | null
+    createdAt: string
+    updatedAt: string
+  }
+
+  type Category = {
+    id: string
+    name: string
+    network: string | null
+    description: string | null
+    price: number
+    imagePath: string | null
+  }
+
+  // Charger les catégories
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await fetch('/api/categories', { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        setCategories(data)
+      }
+    } catch {}
+  }, [])
+
+  // Charger toutes les annonces (de toutes les catégories)
+  const fetchAnnonces = useCallback(async () => {
+    setLoading(true)
+    try {
+      const cats = await fetch('/api/categories', { cache: 'no-store' }).then((r) => r.json())
+      const allModels: StickerModel[] = []
+      for (const cat of cats) {
+        const res = await fetch(`/api/categories/${cat.id}/models`, { cache: 'no-store' })
+        if (res.ok) {
+          const models = await res.json()
+          for (const m of models) {
+            allModels.push({ ...m, categoryName: cat.name })
+          }
+        }
+      }
+      allModels.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      setAnnonces(allModels)
+    } catch {}
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    fetchCategories()
+    fetchAnnonces()
+  }, [fetchCategories, fetchAnnonces])
+
+  // Pré-remplir la catégorie sélectionnée quand les catégories sont chargées
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => {
+    if (categories.length > 0 && !form.categoryId) {
+      setForm((f) => ({ ...f, categoryId: categories[0].id }))
+    }
+  }, [categories])
+
+  // Upload image (stockée en base64 dans KV comme les stickers)
+  const handleImageUpload = async (file: File) => {
+    setUploading(true)
+    try {
+      const reader = new FileReader()
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error('Lecture impossible'))
+        reader.readAsDataURL(file)
+      })
+      // Redimensionner
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const i = new Image()
+        i.onload = () => resolve(i)
+        i.onerror = () => reject(new Error('Image invalide'))
+        i.src = dataUrl
+      })
+      let w = img.naturalWidth, h = img.naturalHeight
+      if (Math.max(w, h) > 800) {
+        const ratio = 800 / Math.max(w, h)
+        w = Math.round(w * ratio); h = Math.round(h * ratio)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = w; canvas.height = h
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, w, h)
+      const outType = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
+      const compressed = canvas.toDataURL(outType, 0.85)
+      setForm((f) => ({ ...f, imagePath: compressed }))
+      toast({ title: 'Image importée' })
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Import impossible' })
+    }
+    setUploading(false)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.categoryId || !form.name.trim()) {
+      toast({ variant: 'destructive', title: 'Catégorie et nom requis' })
+      return
+    }
+    try {
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        price: parseInt(form.price) || undefined,
+        imagePath: form.imagePath || null,
+      }
+      if (editingId) {
+        await fetch(`/api/models/${editingId}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        toast({ title: 'Annonce modifiée' })
+      } else {
+        await fetch(`/api/categories/${form.categoryId}/models`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        toast({ title: 'Annonce créée' })
+      }
+      setShowForm(false)
+      setEditingId(null)
+      setForm({ categoryId: categories[0]?.id || '', name: '', description: '', price: '3000', imagePath: '' })
+      await fetchAnnonces()
+    } catch {
+      toast({ variant: 'destructive', title: 'Erreur' })
+    }
+  }
+
+  const handleEdit = (a: StickerModel) => {
+    setEditingId(a.id)
+    setForm({
+      categoryId: a.categoryId,
+      name: a.name,
+      description: a.description ?? '',
+      price: String(a.price),
+      imagePath: a.imagePath ?? '',
+    })
+    setShowForm(true)
+  }
+
+  const handleDelete = async (id: string, catId: string) => {
+    if (!confirm('Supprimer cette annonce ?')) return
+    try {
+      await fetch(`/api/models/${id}`, { method: 'DELETE' })
+      toast({ title: 'Annonce supprimée' })
+      await fetchAnnonces()
+    } catch {
+      toast({ variant: 'destructive', title: 'Erreur' })
+    }
+  }
+
+  // Trouver le nom de la catégorie pour une annonce
+  const getCatName = (catId: string) => {
+    const cat = categories.find((c) => c.id === catId)
+    return cat?.name || 'Inconnue'
+  }
+
+  return (
+    <Card className="bg-white border-zinc-200 mt-4">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base font-semibold">Annonces</CardTitle>
+          <CardDescription className="text-xs">
+            Crée et gère tes annonces (cartes) par catégorie
+          </CardDescription>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => {
+            setEditingId(null)
+            setForm({ categoryId: categories[0]?.id || '', name: '', description: '', price: '3000', imagePath: '' })
+            setShowForm(!showForm)
+          }}
+        >
+          <Plus size={16} className="mr-1.5" />
+          {showForm ? 'Annuler' : 'Nouvelle annonce'}
+        </Button>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {showForm && (
+          <form onSubmit={handleSubmit} className="space-y-3 mb-4 p-4 rounded-lg border border-zinc-200 bg-zinc-50">
+            {/* Catégorie */}
+            <div>
+              <Label htmlFor="annonce-cat">Catégorie *</Label>
+              <select
+                id="annonce-cat"
+                value={form.categoryId}
+                onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+                className="w-full px-3 py-2 rounded-md border border-zinc-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+              >
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.price.toLocaleString('fr-FR')} FCFA)</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="annonce-name">Nom de l'annonce *</Label>
+                <Input id="annonce-name" placeholder="Ex: Carte Google Classique" value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              </div>
+              <div>
+                <Label htmlFor="annonce-price">Prix (FCFA)</Label>
+                <Input id="annonce-price" type="number" value={form.price}
+                  onChange={(e) => setForm({ ...form, price: e.target.value })} />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="annonce-desc">Description</Label>
+              <Textarea id="annonce-desc" placeholder="Description de l'annonce..." rows={2} value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </div>
+
+            {/* Upload image */}
+            <div>
+              <Label>Image de l'annonce</Label>
+              <div className="flex items-center gap-3">
+                <div className="w-20 h-20 rounded-lg border border-zinc-200 overflow-hidden bg-white flex items-center justify-center shrink-0">
+                  {form.imagePath ? (
+                    <img src={form.imagePath} alt="Aperçu" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xs text-zinc-400">Pas d'image</span>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  id="annonce-image"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) handleImageUpload(f)
+                    e.target.value = ''
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={uploading}
+                  onClick={() => document.getElementById('annonce-image')?.click()}
+                >
+                  {uploading ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : null}
+                  {form.imagePath ? 'Remplacer l\'image' : 'Importer une image'}
+                </Button>
+              </div>
+              <p className="text-[10px] text-zinc-400 mt-1">L'image s'affiche sur le site vitrine dans la catégorie choisie.</p>
+            </div>
+
+            <Button type="submit" size="sm">{editingId ? 'Enregistrer' : 'Créer l\'annonce'}</Button>
+          </form>
+        )}
+
+        {/* Liste des annonces */}
+        {loading ? (
+          <p className="text-sm text-zinc-400 py-4 text-center">Chargement...</p>
+        ) : annonces.length === 0 ? (
+          <p className="text-sm text-zinc-400 py-4 text-center">
+            Aucune annonce. Clique sur "Nouvelle annonce" pour en créer une.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {annonces.map((a) => (
+              <div key={a.id} className="flex items-center gap-3 p-2 rounded-lg border border-zinc-100 hover:border-zinc-300 transition-colors">
+                {/* Image */}
+                <div className="w-14 h-14 rounded-lg overflow-hidden bg-zinc-100 shrink-0 flex items-center justify-center">
+                  {a.imagePath ? (
+                    <img src={a.imagePath} alt={a.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-[10px] text-zinc-400">Pas d'image</span>
+                  )}
+                </div>
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium truncate">{a.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <Badge variant="outline" className="text-zinc-500">{getCatName(a.categoryId)}</Badge>
+                    <span className="text-emerald-600 font-bold">{a.price.toLocaleString('fr-FR')} FCFA</span>
+                  </div>
+                  {a.description && <p className="text-[10px] text-zinc-400 truncate">{a.description}</p>}
+                </div>
+                {/* Actions */}
+                <div className="flex gap-1 shrink-0">
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleEdit(a)}>
+                    <Pencil size={12} />
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => handleDelete(a.id, a.categoryId)}>
+                    <Trash2 size={12} />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 function ModelPhotosSection() {
   const { toast } = useToast()
