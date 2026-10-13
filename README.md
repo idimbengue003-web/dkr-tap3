@@ -4,11 +4,38 @@ Passerelle de redirection QR code avec interface d'administration.
 Chaque sticker physique porte un QR code qui pointe vers `https://VOTRE-DOMAINE/api/r/<slug>`.
 Quand quelqu'un scanne le QR, l'application affiche une page d'attente branded puis redirige (auto après 600 ms) vers l'URL cible — modifiable à tout moment depuis l'admin, sans réimprimer le QR.
 
+## ✨ Fonctionnalités
+
+### E-commerce / Vente de stickers
+
+- **Page d'accueil** avec hero, scroll sequence vidéo, modèles, tarifs dégressifs (1-9 / 10-19 / 20+ cartes)
+- **Catégories de stickers** gérées depuis l'admin (Google, TikTok, Instagram, WhatsApp, YouTube, Facebook, Snapchat, personnalisé)
+- **Modèles individuels** par catégorie (ex : 3 modèles Instagram différents)
+- **Panier revendeur** avec :
+  - Sélecteur de quantité par catégorie (− / +)
+  - **Pack Revendeur en 1 clic** : 5 Instagram + 2 Snapchat + 3 Facebook + 2 YouTube = 12 cartes → débloque automatiquement la remise 17%
+  - **Remise volume automatique** basée sur le total de cartes : 0% (1-9), 17% (10-19), 50% (20+)
+  - Sous-total barré + montant de remise + total final
+  - Persistance via `localStorage` (le revendeur peut quitter et revenir)
+  - Lien de paiement Wave avec montant exact pré-rempli (`?amount=XXXXX`)
+  - Communication inter-composants via `CustomEvent('cart:add')`
+- **Bouton "Ajouter au panier"** sur chaque modèle individuel (en plus du bouton "Commander" direct)
+- **Menu hamburger mobile** coulissant depuis la droite, avec nav + bouton panier + bouton appel + lien admin
+
+### Gestion des stickers (admin)
+
+- Interface admin protégée par mot de passe (cookie HMAC-SHA256 httpOnly)
+- Génération de stickers 10×10 cm PNG (1181×1181 px @ 300 DPI)
+- Templates par réseau (Google, TikTok, Instagram, etc.) avec page d'attente branded
+- Compteur de scans atomique (Redis INCR)
+- QR code généré localement (`qrcode.react`)
+
 ## Stack
 
 - **Next.js 16** (App Router, Turbopack) + TypeScript 5
 - **Vercel KV** (Redis managé) pour le stockage — _compatibilité Vercel gratuite_
 - Tailwind CSS 4 + shadcn/ui (composants) + lucide-react (icônes)
+- **framer-motion** pour les animations (drawer panier, modals, menu hamburger)
 - Auth stateless par cookie HMAC-SHA256 (cookie `httpOnly`)
 - QR code généré localement via `qrcode.react` (aucune dépendance externe)
 
