@@ -5,4 +5,4 @@ Disallow: /admin
 Disallow: /api/
 
 # Sitemap
-Sitemap: https://dkr-tap3.vercel.app/sitemap.xml
+Sitemap: https://www.dkrtap.site/sitemap.xml

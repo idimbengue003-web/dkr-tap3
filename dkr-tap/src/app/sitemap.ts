@@ -3,7 +3,7 @@ import type { MetadataRoute } from 'next'
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dkr-tap3.vercel.app'
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.dkrtap.site'
   const now = new Date()
   return [
     {

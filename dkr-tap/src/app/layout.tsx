@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: `${BRAND_NAME} — Cartes QR pour vos réseaux sociaux`,
     description: "Vos cartes QR DKR TAP redirigent vos clients directement vers vos réseaux sociaux. TikTok, Instagram, Google, WhatsApp — choisissez votre réseau, on s'occupe du reste. Vos clients scannent, votre audience grandit.",
-    url: "https://chat.z.ai",
+    url: "https://www.dkrtap.site",
     siteName: BRAND_NAME,
     type: "website",
   },
