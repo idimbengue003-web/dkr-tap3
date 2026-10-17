@@ -9,8 +9,8 @@ export async function GET(
 ) {
   const { n } = await params
   const slot = parseInt(n)
-  if (slot < 1 || slot > 3) {
-    return NextResponse.json({ error: 'Slot invalide (1-3)' }, { status: 400 })
+  if (slot < 1 || slot > 4) {
+    return NextResponse.json({ error: 'Slot invalide (1-4)' }, { status: 400 })
   }
   const dataUrl = await db.getModelPhoto(slot)
   if (!dataUrl) {
@@ -43,8 +43,8 @@ export async function POST(
   if (guard) return guard
   const { n } = await params
   const slot = parseInt(n)
-  if (slot < 1 || slot > 3) {
-    return NextResponse.json({ error: 'Slot invalide (1-3)' }, { status: 400 })
+  if (slot < 1 || slot > 4) {
+    return NextResponse.json({ error: 'Slot invalide (1-4)' }, { status: 400 })
   }
   let body: { image?: string }
   try {

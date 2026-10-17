@@ -92,7 +92,7 @@ async function getCategories(): Promise<Category[]> {
   try { return await db.listCategories() } catch { return [] }
 }
 async function getModelPhotos(): Promise<(string | null)[]> {
-  try { return await db.getAllModelPhotos() } catch { return [null, null, null] }
+  try { return await db.getAllModelPhotos() } catch { return [null, null, null, null] }
 }
 
 export default async function LandingPage() {
@@ -252,9 +252,9 @@ export default async function LandingPage() {
             Des designs professionnels pour chaque réseau social. Chaque sticker inclut la page d&apos;attente aux couleurs de la marque.
           </p>
 
-          {/* 3 photos — récupérées depuis l'admin (KV) ou placeholder */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
-            {[0, 1, 2].map((i) => (
+          {/* 4 photos — récupérées depuis l'admin (KV) ou placeholder */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+            {[0, 1, 2, 3].map((i) => (
               <div key={i} className="aspect-video rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 flex items-center justify-center">
                 {modelPhotos[i] ? (
                   <img

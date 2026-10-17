@@ -33,6 +33,11 @@ export type Sticker = {
   active: boolean
   createdAt: string // ISO string (sérialisable JSON)
   updatedAt: string
+  /** Email de l'acheteur propriétaire (quand le sticker a été créé suite à une commande).
+   *  Permet à l'acheteur de le retrouver dans /account et d'éditer son URL. */
+  buyerEmail?: string | null
+  /** ID de la commande dont ce sticker est issu (optionnel). */
+  orderId?: string | null
   /** Texte d'action personnalisé affiché en haut du sticker.
    *  Si null → utilise le texte par défaut du réseau détecté (ou "Scannez ce QR code"). */
   customActionText?: string | null
@@ -117,7 +122,7 @@ export const db = {
    * Crée un sticker. Retourne le sticker créé.
    * Le slug doit être unique — l'appelant doit le vérifier avant.
    */
-  async createSticker(input: StickerInput): Promise<Sticker> {
+  async createSticker(input: StickerInput & { buyerEmail?: string | null; orderId?: string | null }): Promise<Sticker> {
     const now = new Date().toISOString()
     const sticker: Omit<Sticker, 'scanCount'> = {
       id: generateId(),
@@ -127,6 +132,8 @@ export const db = {
       active: input.active,
       createdAt: now,
       updatedAt: now,
+      buyerEmail: input.buyerEmail ?? null,
+      orderId: input.orderId ?? null,
       customActionText: input.customActionText ?? null,
       customNetwork: input.customNetwork ?? null,
       qrPosition: input.qrPosition ?? { x: 0.85, y: 0.85 }, // bas-droite par défaut
@@ -145,6 +152,12 @@ export const db = {
     const filtered = existingList.filter((s) => s !== input.slug) // évite les doublons
     filtered.unshift(input.slug) // ajoute en tête (most recent first)
     await store.set('stickers:list', filtered)
+    // Liste simple des slugs pour le lookup par buyerEmail (filtrage in-memory)
+    const memberList = (await store.get<string[]>('stickers:by_created_members')) || []
+    if (!memberList.includes(input.slug)) {
+      memberList.unshift(input.slug)
+      await store.set('stickers:by_created_members', memberList)
+    }
 
     return { ...sticker, scanCount: 0 }
   },
@@ -582,7 +595,7 @@ export const db = {
   },
 
   async getAllModelPhotos(): Promise<(string | null)[]> {
-    return Promise.all([1, 2, 3].map((n) => store.get<string>(`modelPhoto:${n}`)))
+    return Promise.all([1, 2, 3, 4].map((n) => store.get<string>(`modelPhoto:${n}`)))
   },
 
   /* ============ MODÈLES PAR CATÉGORIE ============ */
@@ -685,6 +698,21 @@ export const db = {
       updatedAt: now,
     }
     await store.set(`order:${id}`, updated)
+    // Auto-création des stickers quand la commande passe à "paid"
+    // (une seule fois — si les stickers ont déjà été créés pour cette commande, on ne refait pas)
+    if (status === 'paid' && existing.status !== 'paid') {
+      try {
+        const existingStickers = (await store.get<string[]>('stickers:list')) || []
+        const alreadyHasStickers = existingStickers.some(
+          (slug) => slug.startsWith(`cmd-${id}-`)
+        )
+        if (!alreadyHasStickers) {
+          await this.createStickersForOrder(id)
+        }
+      } catch (e) {
+        console.error('[updateOrderStatus] Erreur création stickers pour commande', id, e)
+      }
+    }
     return updated
   },
 
@@ -696,6 +724,63 @@ export const db = {
     const filtered = list.filter((o) => o !== id)
     await store.set('orders:list', filtered)
     return true
+  },
+
+  /** Liste les commandes par email d'acheteur (pour la page /account) */
+  async listOrdersByEmail(email: string): Promise<Order[]> {
+    if (!email) return []
+    const target = email.toLowerCase().trim()
+    const all = await this.listOrders()
+    return all.filter(
+      (o) => o.customerName?.toLowerCase().includes(target) || o.customerPhone === target
+      // Note:buyerEmail is stored in customerName field for now (single email field)
+      // Future: migrate to a dedicated buyerEmail field on Order type
+    )
+  },
+
+  /** Crée les stickers associés à une commande quand elle passe en "paid"
+   *  (appelé automatiquement par updateOrderStatus ou manuellement par l'admin)
+   *  Retourne les stickers créés. */
+  async createStickersForOrder(orderId: string): Promise<Sticker[]> {
+    const order = await this.getOrder(orderId)
+    if (!order) return []
+    const buyerEmail = order.customerName || order.customerPhone || null
+    const created: Sticker[] = []
+    let stickerIdx = 0
+    for (const item of order.items) {
+      for (let i = 0; i < item.qty; i++) {
+        stickerIdx++
+        // Slug unique avec préfixe cmd-<orderId>- pour vérifier facilement l'existence
+        let slug = `cmd-${orderId}-${stickerIdx}`
+        // Si collision (improbable), ajouter un suffixe aléatoire
+        if (await this.slugExists(slug)) {
+          slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`
+        }
+        const sticker = await this.createSticker({
+          slug,
+          label: `${item.name} #${i + 1} (cmd ${orderId})`,
+          targetUrl: null,
+          active: true,
+          buyerEmail,
+          orderId,
+        })
+        created.push(sticker)
+      }
+    }
+    return created
+  },
+
+  /** Liste tous les stickers d'un acheteur (par email) */
+  async listStickersByBuyerEmail(email: string): Promise<Sticker[]> {
+    if (!email) return []
+    const target = email.toLowerCase().trim()
+    const ids = (await store.get<string[]>('stickers:by_created_members')) || []
+    if (!ids.length) return []
+    // Pour chaque sticker, vérifier le buyerEmail
+    const stickers = await store.mget<Sticker>(...ids.map((id) => `sticker:${id}`))
+    return (stickers.filter(Boolean) as Sticker[]).filter(
+      (s) => (s.buyerEmail || '').toLowerCase() === target
+    )
   },
 }
 

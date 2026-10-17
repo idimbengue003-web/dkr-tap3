@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { MobileNav } from '@/components/mobile-nav'
 import { CartDrawer, getCartTotalQty } from '@/components/cart-drawer'
+import { UserMenu } from '@/components/user-menu'
 
 type Category = {
   id: string
@@ -87,6 +88,9 @@ export function Navbar({ brandName, brandLogo, brandPhone, categories }: Props) 
 
           {/* Boutons desktop */}
           <div className="hidden sm:flex items-center gap-2">
+            {/* User menu (connexion Google) */}
+            <UserMenu />
+
             {/* Bouton panier desktop */}
             <button
               onClick={openCart}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X, Phone } from 'lucide-react'
+import { UserMenu } from '@/components/user-menu'
 
 type Props = {
   brandName: string
@@ -37,6 +38,9 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
     <>
       {/* Barre mobile (s'affiche en dessous de sm) */}
       <div className="sm:hidden flex items-center gap-2">
+        {/* User menu (connexion Google) */}
+        <UserMenu />
+
         {/* Bouton panier */}
         <button
           onClick={onOpenCart}

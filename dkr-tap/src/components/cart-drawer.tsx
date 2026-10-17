@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Minus, Plus, ShoppingBag, Trash2, Sparkles, CheckCircle2 } from 'lucide-react'
 
@@ -70,12 +71,20 @@ type CartAddEvent = {
 }
 
 export function CartDrawer({ categories, open, onOpenChange }: Props) {
+  const { data: session } = useSession()
   const [cart, setCart] = useState<CartState>({})
   const [justAdded, setJustAdded] = useState<string | null>(null)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [submittingOrder, setSubmittingOrder] = useState(false)
   const [lastOrderId, setLastOrderId] = useState<string | null>(null)
+
+  // Pré-remplir le nom avec l'email de l'utilisateur connecté
+  useEffect(() => {
+    if (session?.user?.email && !customerName) {
+      setCustomerName(session.user.email)
+    }
+  }, [session?.user?.email, customerName])
 
   // Charger le panier depuis localStorage au montage
   useEffect(() => {

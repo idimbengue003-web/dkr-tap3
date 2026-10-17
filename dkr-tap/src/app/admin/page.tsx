@@ -2753,12 +2753,12 @@ function AnnoncesSection() {
 
 function ModelPhotosSection() {
   const { toast } = useToast()
-  const [photos, setPhotos] = useState<(string | null)[]>([null, null, null])
+  const [photos, setPhotos] = useState<(string | null)[]>([null, null, null, null])
   const [uploading, setUploading] = useState<number | null>(null)
 
   const fetchPhotos = useCallback(async () => {
     const results = await Promise.all(
-      [1, 2, 3].map(async (n) => {
+      [1, 2, 3, 4].map(async (n) => {
         try {
           const res = await fetch(`/api/models/photos/${n}`, { cache: 'no-store' })
           if (res.ok) {
@@ -2838,9 +2838,9 @@ function ModelPhotosSection() {
 
   return (
     <div className="mt-4 pt-4 border-t border-zinc-100">
-      <p className="text-xs text-zinc-500 mb-3 font-medium">Photos du site vitrine (3 emplacements) :</p>
-      <div className="grid grid-cols-3 gap-3">
-        {[1, 2, 3].map((n) => (
+      <p className="text-xs text-zinc-500 mb-3 font-medium">Photos du site vitrine (4 emplacements) :</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[1, 2, 3, 4].map((n) => (
           <div key={n} className="text-center">
             <div className="aspect-video rounded-lg overflow-hidden border border-zinc-200 bg-zinc-100 mb-2 flex items-center justify-center">
               {photos[n - 1] ? (
