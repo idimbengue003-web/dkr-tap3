@@ -10,7 +10,7 @@ import GoogleProvider from 'next-auth/providers/google'
  * - GOOGLE_CLIENT_ID
  * - GOOGLE_CLIENT_SECRET
  * - NEXTAUTH_SECRET (clé JWT pour signer la session)
- * - NEXTAUTH_URL (URL publique du site, ex: https://dkr-tap3.vercel.app)
+ * - NEXTAUTH_URL (URL publique du site, ex: https://www.dkrtap.site)
  *
  * Setup Google OAuth :
  * 1. https://console.cloud.google.com/ → "APIs & Services" → "Credentials"
@@ -20,7 +20,11 @@ import GoogleProvider from 'next-auth/providers/google'
  * 4. Copier Client ID + Client Secret dans les env vars Vercel
  */
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
+// Détection environnement production (HTTPS + cookies sécurisés)
+const isProd = process.env.NODE_ENV === 'production'
+
+// Préfixe __Secure- requis en prod pour que le cookie soit accepté en HTTPS
+const cookiePrefix = isProd ? '__Secure-' : ''
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -33,13 +37,71 @@ export const authOptions: NextAuthOptions = {
         },
       },
     }),
-    // Optionnel : provider "credentials" pour que l'admin se connecte avec son mot de passe
-    // (en plus de Google) — on garde le système existant (cookie HMAC séparé) pour l'admin
   ],
   secret: process.env.NEXTAUTH_SECRET || 'dev-secret-change-me-in-production',
+  // ⚠️ trustHost: true est CRITIQUE sur Vercel — sinon NextAuth ne truste pas
+  // l'URL du host envoyée par Vercel (qui passe par un proxy HTTPS) et
+  // la session n'est pas correctement persistée après l'OAuth callback.
+  trustHost: true,
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 jours
+  },
+  // Cookies explicites — sameSite 'lax' pour compatibilité OAuth redirect
+  cookies: {
+    sessionToken: {
+      name: `${cookiePrefix}next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+      },
+    },
+    callbackUrl: {
+      name: `${cookiePrefix}next-auth.callback-url`,
+      options: {
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+      },
+    },
+    csrfToken: {
+      name: `${cookiePrefix}next-auth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+      },
+    },
+    pkceCodeVerifier: {
+      name: `${cookiePrefix}next-auth.pkce.code-verifier`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+      },
+    },
+    state: {
+      name: `${cookiePrefix}next-auth.state`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+      },
+    },
+    nonce: {
+      name: `${cookiePrefix}next-auth.nonce`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+      },
+    },
   },
   callbacks: {
     async jwt({ token, account, user }) {
@@ -66,7 +128,7 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: '/account',
-    error: '/account',
+    error: '/account?error=1',
   },
 }
 
