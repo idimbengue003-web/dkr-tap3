@@ -20,12 +20,6 @@ import GoogleProvider from 'next-auth/providers/google'
  * 4. Copier Client ID + Client Secret dans les env vars Vercel
  */
 
-// Détection environnement production (HTTPS + cookies sécurisés)
-const isProd = process.env.NODE_ENV === 'production'
-
-// Préfixe __Secure- requis en prod pour que le cookie soit accepté en HTTPS
-const cookiePrefix = isProd ? '__Secure-' : ''
-
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -40,67 +34,26 @@ export const authOptions: NextAuthOptions = {
   ],
   secret: process.env.NEXTAUTH_SECRET || 'dev-secret-change-me-in-production',
   // ⚠️ trustHost: true est CRITIQUE sur Vercel — sinon NextAuth ne truste pas
-  // l'URL du host envoyée par Vercel (qui passe par un proxy HTTPS) et
-  // la session n'est pas correctement persistée après l'OAuth callback.
+  // l'URL du host envoyée par Vercel (proxy HTTPS) et l'OAuth callback échoue.
   trustHost: true,
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 jours
   },
-  // Cookies explicites — sameSite 'lax' pour compatibilité OAuth redirect
-  cookies: {
-    sessionToken: {
-      name: `${cookiePrefix}next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: isProd,
-      },
+  // Mode debug pour voir les erreurs OAuth en prod (à retirer une fois que ça marche)
+  debug: true,
+  logger: {
+    error(error: Error) {
+      console.error('[next-auth ERROR]', JSON.stringify(error, null, 2))
+      // Afficher le message complet avec stack
+      console.error('[next-auth ERROR message]', error.message)
+      console.error('[next-auth ERROR stack]', error.stack)
     },
-    callbackUrl: {
-      name: `${cookiePrefix}next-auth.callback-url`,
-      options: {
-        sameSite: 'lax',
-        path: '/',
-        secure: isProd,
-      },
+    warn(code: string) {
+      console.warn('[next-auth WARN]', code)
     },
-    csrfToken: {
-      name: `${cookiePrefix}next-auth.csrf-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: isProd,
-      },
-    },
-    pkceCodeVerifier: {
-      name: `${cookiePrefix}next-auth.pkce.code-verifier`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: isProd,
-      },
-    },
-    state: {
-      name: `${cookiePrefix}next-auth.state`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: isProd,
-      },
-    },
-    nonce: {
-      name: `${cookiePrefix}next-auth.nonce`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: isProd,
-      },
+    debug(message: string, metadata?: any) {
+      console.log('[next-auth DEBUG]', message, metadata ? JSON.stringify(metadata).slice(0, 500) : '')
     },
   },
   callbacks: {
