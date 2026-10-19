@@ -20,6 +20,11 @@ import GoogleProvider from 'next-auth/providers/google'
  * 4. Copier Client ID + Client Secret dans les env vars Vercel
  */
 
+const isProd = process.env.NODE_ENV === 'production'
+// Préfixe __Secure- (moins restrictif que __Host-) — permet d'éviter les
+// problèmes de cookies non reçus en retour après l'OAuth callback sur Vercel.
+const cookiePrefix = isProd ? '__Secure-' : ''
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -33,37 +38,108 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET || 'dev-secret-change-me-in-production',
-  // ⚠️ trustHost: true est CRITIQUE sur Vercel — sinon NextAuth ne truste pas
-  // l'URL du host envoyée par Vercel (proxy HTTPS) et l'OAuth callback échoue.
+  // ⚠️ trustHost: true est CRITIQUE sur Vercel
   trustHost: true,
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 jours
   },
-  // Mode debug pour voir les erreurs OAuth en prod (à retirer une fois que ça marche)
-  debug: true,
+  // Cookies explicites avec préfixe __Secure- (au lieu de __Host- par défaut)
+  // __Secure- est moins restrictif et permet aux cookies d'être renvoyés
+  // après le redirect Google (qui est un cross-site navigation).
+  cookies: {
+    sessionToken: {
+      name: `${cookiePrefix}next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+      },
+    },
+    callbackUrl: {
+      name: `${cookiePrefix}next-auth.callback-url`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+      },
+    },
+    csrfToken: {
+      name: `${cookiePrefix}next-auth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+      },
+    },
+    pkceCodeVerifier: {
+      name: `${cookiePrefix}next-auth.pkce.code-verifier`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+        maxAge: 60 * 5, // 5 minutes (le OAuth callback doit arriver dans cette fenêtre)
+      },
+    },
+    state: {
+      name: `${cookiePrefix}next-auth.state`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+        maxAge: 60 * 5,
+      },
+    },
+    nonce: {
+      name: `${cookiePrefix}next-auth.nonce`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+      },
+    },
+  },
+  // Logger détaillé pour capter toutes les erreurs OAuth
   logger: {
-    error(error: Error) {
-      console.error('[next-auth ERROR]', JSON.stringify(error, null, 2))
-      // Afficher le message complet avec stack
-      console.error('[next-auth ERROR message]', error.message)
-      console.error('[next-auth ERROR stack]', error.stack)
+    error(error: any) {
+      // L'erreur NextAuth peut être un Error classique ou un objet NextAuth Error
+      // On logge TOUT ce qu'on peut pour le debug
+      console.error('==========[NEXTAUTH ERROR]==========')
+      console.error('Type:', typeof error)
+      console.error('Constructor:', error?.constructor?.name)
+      console.error('Name:', error?.name)
+      console.error('Message:', error?.message)
+      console.error('Code:', error?.code)
+      console.error('Stack:', error?.stack)
+      try {
+        console.error('Full JSON:', JSON.stringify(error, Object.getOwnPropertyNames(error || {}), 2))
+      } catch {
+        console.error('String repr:', String(error))
+      }
+      console.error('===================================')
     },
     warn(code: string) {
       console.warn('[next-auth WARN]', code)
     },
     debug(message: string, metadata?: any) {
-      console.log('[next-auth DEBUG]', message, metadata ? JSON.stringify(metadata).slice(0, 500) : '')
+      // Log seulement les messages importants
+      if (typeof message === 'string' && (message.includes('error') || message.includes('callback') || message.includes('oauth') || message.includes('cookie'))) {
+        console.log('[next-auth DEBUG]', message, metadata ? JSON.stringify(metadata).slice(0, 800) : '')
+      }
     },
   },
   callbacks: {
     async jwt({ token, account, user }) {
-      // Premier login : on enregistre l'email et l'admin flag dans le token
       if (account && user) {
         token.email = user.email
         token.name = user.name
         token.picture = user.image
-        // Admin = si l'email correspond à l'admin autorisé (configurable via env var)
         const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)
         token.isAdmin = adminEmails.includes((user.email || '').toLowerCase())
       }
