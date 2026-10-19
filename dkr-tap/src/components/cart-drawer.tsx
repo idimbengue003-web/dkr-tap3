@@ -81,6 +81,9 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
   // États pour le polling de paiement
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'waiting' | 'paid' | 'timeout' | 'error'>('idle')
   const [pollCount, setPollCount] = useState(0)
+  // Solde wallet de l'utilisateur connecté
+  const [walletBalance, setWalletBalance] = useState(0)
+  const [payingFromWallet, setPayingFromWallet] = useState(false)
 
   // Pré-remplir le nom avec l'email de l'utilisateur connecté
   useEffect(() => {
@@ -88,6 +91,30 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
       setCustomerName(session.user.email)
     }
   }, [session?.user?.email, customerName])
+
+  // Charger le solde wallet de l'utilisateur connecté
+  const refreshWallet = useCallback(async () => {
+    if (!session?.user?.email) {
+      setWalletBalance(0)
+      return
+    }
+    try {
+      const res = await fetch('/api/my/wallet', { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        setWalletBalance(data.balance || 0)
+      }
+    } catch {}
+  }, [session?.user?.email])
+
+  useEffect(() => {
+    refreshWallet()
+  }, [refreshWallet])
+
+  // Recharger le solde quand on ouvre le panier
+  useEffect(() => {
+    if (open) refreshWallet()
+  }, [open, refreshWallet])
 
   // Charger le panier depuis localStorage au montage
   useEffect(() => {
@@ -562,77 +589,181 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                     />
                   </div>
 
-                  {/* Bouton Wave : crée la commande serveur puis redirige */}
-                  <button
-                    onClick={async () => {
-                      if (submittingOrder) return
-                      setSubmittingOrder(true)
-                      try {
-                        // Préparer les items pour l'API
-                        const apiItems = items.map((it) => {
-                          const unitPrice = getUnitPrice(it.price, totalQty)
-                          return {
-                            key: it.key,
-                            name: it.name,
-                            parentName: it.parentName,
-                            price: it.price,
-                            unitPrice,
-                            qty: it.qty,
-                            imagePath: it.imagePath,
-                          }
-                        })
-                        const res = await fetch('/api/orders', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            items: apiItems,
-                            totalQty,
-                            totalBefore,
-                            totalAfter,
-                            discountPct,
-                            paymentMethod: 'wave',
-                            customerName: customerName || null,
-                            customerPhone: customerPhone || null,
-                          }),
-                        })
-                        if (!res.ok) {
-                          const err = await res.json().catch(() => ({}))
-                          throw new Error(err.error || 'Échec création commande')
-                        }
-                        const order = await res.json()
-                        setLastOrderId(order.id)
-                        // Rediriger vers Wave avec le montant exact
-                        const waveUrl = buildWaveUrl(totalAfter)
-                        if (waveUrl !== '#') {
-                          window.open(waveUrl, '_blank', 'noopener,noreferrer')
-                        }
-                        // ⚡ Démarrer le polling de vérification de paiement
-                        setPaymentStatus('waiting')
-                        setPollCount(0)
-                      } catch (e) {
-                        alert('Erreur lors de la création de la commande : ' + (e as Error).message)
-                      } finally {
-                        setSubmittingOrder(false)
-                      }
-                    }}
-                    disabled={submittingOrder || paymentStatus === 'waiting' || paymentStatus === 'paid'}
-                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-emerald-500 text-black font-bold text-lg hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <ShoppingBag size={20} />
-                    {submittingOrder
-                      ? 'Création de la commande…'
-                      : paymentStatus === 'paid'
-                      ? 'Paiement confirmé !'
-                      : paymentStatus === 'waiting'
-                      ? 'En attente de paiement Wave…'
-                      : `Payer ${totalAfter.toLocaleString('fr-FR')} FCFA avec Wave`}
-                  </button>
+                  {/* 📊 Affichage du solde wallet de l'utilisateur connecté */}
+                  {session?.user?.email && (
+                    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400">
+                          <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>
+                        </svg>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-zinc-500">Mon solde</p>
+                          <p className="text-sm font-bold text-emerald-400">
+                            {walletBalance.toLocaleString('fr-FR')} FCFA
+                          </p>
+                        </div>
+                      </div>
+                      {walletBalance >= totalAfter ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500 text-black font-bold">
+                          SUFFISANT
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">
+                          MANQUE {(totalAfter - walletBalance).toLocaleString('fr-FR')} FCFA
+                        </span>
+                      )}
+                    </div>
+                  )}
 
-                  {/* Statut de vérification du paiement */}
-                  {lastOrderId && !submittingOrder && paymentStatus === 'idle' && (
+                  {/* 🟢 Bouton 1 : Payer avec mon solde (uniquement si connecté + solde suffisant) */}
+                  {session?.user?.email && walletBalance >= totalAfter && (
+                    <button
+                      onClick={async () => {
+                        if (submittingOrder || payingFromWallet) return
+                        setSubmittingOrder(true)
+                        try {
+                          // 1. Créer la commande
+                          const apiItems = items.map((it) => {
+                            const unitPrice = getUnitPrice(it.price, totalQty)
+                            return {
+                              key: it.key, name: it.name, parentName: it.parentName,
+                              price: it.price, unitPrice, qty: it.qty, imagePath: it.imagePath,
+                            }
+                          })
+                          const res = await fetch('/api/orders', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              items: apiItems, totalQty, totalBefore, totalAfter,
+                              discountPct, paymentMethod: 'wave',
+                              customerName: customerName || session.user.email || null,
+                              customerPhone: customerPhone || null,
+                            }),
+                          })
+                          if (!res.ok) {
+                            const err = await res.json().catch(() => ({}))
+                            throw new Error(err.error || 'Échec création commande')
+                          }
+                          const order = await res.json()
+                          setLastOrderId(order.id)
+
+                          // 2. Payer avec le solde wallet
+                          setPayingFromWallet(true)
+                          const payRes = await fetch(`/api/orders/${order.id}/pay-from-wallet`, {
+                            method: 'POST',
+                          })
+                          if (!payRes.ok) {
+                            const err = await payRes.json().catch(() => ({}))
+                            throw new Error(err.error || 'Solde insuffisant')
+                          }
+                          // 3. Succès ! Marquer comme paid + vider panier
+                          setPaymentStatus('paid')
+                          setTimeout(() => {
+                            setCart({})
+                            try { localStorage.removeItem(STORAGE_KEY) } catch {}
+                            window.dispatchEvent(new Event('cart:add'))
+                            refreshWallet()
+                          }, 1500)
+                        } catch (e) {
+                          alert('Erreur : ' + (e as Error).message)
+                        } finally {
+                          setSubmittingOrder(false)
+                          setPayingFromWallet(false)
+                        }
+                      }}
+                      disabled={submittingOrder || payingFromWallet || paymentStatus === 'paid'}
+                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-emerald-500 text-black font-bold text-lg hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>
+                      </svg>
+                      {payingFromWallet
+                        ? 'Paiement en cours…'
+                        : paymentStatus === 'paid'
+                        ? 'Paiement confirmé ! 🎉'
+                        : `Payer ${totalAfter.toLocaleString('fr-FR')} FCFA avec mon solde`}
+                    </button>
+                  )}
+
+                  {/* 🟡 Bouton 2 : Recharger mon solde (toujours visible — permet d'aller sur /recharger) */}
+                  {(!session?.user?.email || walletBalance < totalAfter) && paymentStatus !== 'paid' && (
+                    <a
+                      href="/recharger"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-zinc-800 text-emerald-400 font-bold text-lg hover:bg-zinc-700 transition-colors border border-emerald-500/30"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>
+                      </svg>
+                      {session?.user?.email
+                        ? `Recharger mon solde (manque ${(totalAfter - walletBalance).toLocaleString('fr-FR')} FCFA)`
+                        : 'Recharger mon solde'}
+                    </a>
+                  )}
+
+                  {/* 🔵 Bouton 3 : Payer directement via Wave (alternative) — masqué si wallet suffit */}
+                  {(!session?.user?.email || walletBalance < totalAfter) && (
+                    <details className="text-xs text-zinc-500">
+                      <summary className="cursor-pointer hover:text-zinc-300 py-1">
+                        Ou payer directement via Wave (sans solde)
+                      </summary>
+                      <button
+                        onClick={async () => {
+                          if (submittingOrder) return
+                          setSubmittingOrder(true)
+                          try {
+                            const apiItems = items.map((it) => {
+                              const unitPrice = getUnitPrice(it.price, totalQty)
+                              return {
+                                key: it.key, name: it.name, parentName: it.parentName,
+                                price: it.price, unitPrice, qty: it.qty, imagePath: it.imagePath,
+                              }
+                            })
+                            const res = await fetch('/api/orders', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                items: apiItems, totalQty, totalBefore, totalAfter,
+                                discountPct, paymentMethod: 'wave',
+                                customerName: customerName || null,
+                                customerPhone: customerPhone || null,
+                              }),
+                            })
+                            if (!res.ok) {
+                              const err = await res.json().catch(() => ({}))
+                              throw new Error(err.error || 'Échec création commande')
+                            }
+                            const order = await res.json()
+                            setLastOrderId(order.id)
+                            const waveUrl = buildWaveUrl(totalAfter)
+                            if (waveUrl !== '#') {
+                              window.open(waveUrl, '_blank', 'noopener,noreferrer')
+                            }
+                            setPaymentStatus('waiting')
+                            setPollCount(0)
+                          } catch (e) {
+                            alert('Erreur : ' + (e as Error).message)
+                          } finally {
+                            setSubmittingOrder(false)
+                          }
+                        }}
+                        disabled={submittingOrder || paymentStatus === 'waiting' || paymentStatus === 'paid'}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-zinc-800 text-zinc-300 font-semibold text-sm hover:bg-zinc-700 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+                      >
+                        <ShoppingBag size={16} />
+                        {submittingOrder
+                          ? 'Création…'
+                          : `Payer ${totalAfter.toLocaleString('fr-FR')} FCFA avec Wave`}
+                      </button>
+                    </details>
+                  )}
+
+                  {/* Statut de vérification du paiement (Wave polling) */}
+                  {lastOrderId && !submittingOrder && paymentStatus === 'idle' && session?.user?.email && walletBalance >= totalAfter && (
                     <p className="text-xs text-emerald-400 text-center flex items-center justify-center gap-1.5">
                       <CheckCircle2 size={12} />
-                      Commande <strong>{lastOrderId}</strong> enregistrée. Confirmez-la au {BRAND_PHONE}.
+                      Commande <strong>{lastOrderId}</strong> enregistrée.
                     </p>
                   )}
 
@@ -664,9 +795,9 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                                   setCart({})
                                   try { localStorage.removeItem(STORAGE_KEY) } catch {}
                                   window.dispatchEvent(new Event('cart:add'))
+                                  refreshWallet()
                                 }, 1500)
                               } else {
-                                // Forcer un re-poll
                                 setPollCount((c) => c + 1)
                               }
                             }

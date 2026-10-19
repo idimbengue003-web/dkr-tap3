@@ -133,10 +133,10 @@ export default async function LandingPage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <a
-              href={WAVE_URL}
+              href="/recharger"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20"
             >
-              Payer avec Wave
+              Recharger mon solde
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>
               </svg>
@@ -305,10 +305,10 @@ export default async function LandingPage() {
 
           <div className="text-center mt-10">
             <a
-              href={WAVE_URL}
+              href="/recharger"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400 transition-colors"
             >
-              Payer avec Wave
+              Recharger mon solde
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>
               </svg>
@@ -373,14 +373,14 @@ export default async function LandingPage() {
             {/* Bouton Wave */}
             {WAVE_URL !== '#commander' && (
               <a
-                href={WAVE_URL}
+                href="/recharger"
                 className="inline-flex items-center gap-3 px-8 py-4 rounded-xl bg-emerald-500 text-black font-bold text-lg hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/30"
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="2" y="5" width="20" height="14" rx="2"/>
                   <path d="M2 10h20"/>
                 </svg>
-                Payer avec Wave
+                Recharger mon solde
               </a>
             )}
 

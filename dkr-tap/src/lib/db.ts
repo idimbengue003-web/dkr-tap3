@@ -664,6 +664,7 @@ export const db = {
       customerName: input.customerName ?? null,
       customerPhone: input.customerPhone ?? null,
       customerNote: input.customerNote ?? null,
+      type: input.type ?? 'order',
       createdAt: now,
       updatedAt: now,
       paidAt: null,
@@ -734,16 +735,91 @@ export const db = {
     return true
   },
 
-  /** Liste les commandes par email d'acheteur (pour la page /account) */
+  /** Liste les commandes d'achat (type='order') par email d'acheteur.
+   *  Les recharges (type='recharge') sont filtrées (affichées séparément dans /account). */
   async listOrdersByEmail(email: string): Promise<Order[]> {
     if (!email) return []
     const target = email.toLowerCase().trim()
     const all = await this.listOrders()
     return all.filter(
-      (o) => o.customerName?.toLowerCase().includes(target) || o.customerPhone === target
-      // Note:buyerEmail is stored in customerName field for now (single email field)
-      // Future: migrate to a dedicated buyerEmail field on Order type
+      (o) =>
+        (o.type || 'order') === 'order' &&
+        (o.customerName?.toLowerCase().includes(target) || o.customerPhone === target)
     )
+  },
+
+  /** Liste les commandes de recharge (type='recharge') par email — pour l'historique wallet */
+  async listRechargeOrdersByEmail(email: string): Promise<Order[]> {
+    if (!email) return []
+    const target = email.toLowerCase().trim()
+    const all = await this.listOrders()
+    return all.filter(
+      (o) =>
+        o.type === 'recharge' &&
+        (o.customerName?.toLowerCase().includes(target) || o.customerPhone === target)
+    )
+  },
+
+  /* ============ WALLET ============ */
+
+  /** Récupère ou crée le wallet d'un utilisateur (par email Google) */
+  async getWallet(email: string): Promise<Wallet> {
+    const ownerEmail = email.toLowerCase().trim()
+    const existing = await store.get<Wallet>(`wallet:${ownerEmail}`)
+    if (existing) return existing
+    // Créer un wallet vide s'il n'existe pas
+    const now = new Date().toISOString()
+    const wallet: Wallet = {
+      ownerEmail,
+      balance: 0,
+      createdAt: now,
+      updatedAt: now,
+    }
+    await store.set(`wallet:${ownerEmail}`, wallet)
+    return wallet
+  },
+
+  /** Ajoute un montant au solde + enregistre la transaction.
+   *  amount > 0 pour un dépôt, amount < 0 pour un paiement commande */
+  async addWalletTransaction(
+    email: string,
+    type: 'deposit' | 'order_payment',
+    amount: number,
+    orderId?: string | null
+  ): Promise<Wallet> {
+    const ownerEmail = email.toLowerCase().trim()
+    const wallet = await this.getWallet(ownerEmail)
+    const updated: Wallet = {
+      ...wallet,
+      balance: Math.max(0, wallet.balance + amount), // jamais négatif
+      updatedAt: new Date().toISOString(),
+    }
+    await store.set(`wallet:${ownerEmail}`, updated)
+    // Enregistrer la transaction
+    const txId = `wtx_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    const tx: WalletTransaction = {
+      id: txId,
+      ownerEmail,
+      type,
+      amount,
+      orderId: orderId ?? null,
+      createdAt: new Date().toISOString(),
+    }
+    await store.set(`wtx:${txId}`, tx)
+    // Liste des transactions de l'utilisateur (plus récent en premier)
+    const list = (await store.get<string[]>(`wtx:list:${ownerEmail}`)) || []
+    list.unshift(txId)
+    await store.set(`wtx:list:${ownerEmail}`, list)
+    return updated
+  },
+
+  /** Liste les transactions wallet d'un utilisateur */
+  async listWalletTransactions(email: string): Promise<WalletTransaction[]> {
+    const ownerEmail = email.toLowerCase().trim()
+    const ids = (await store.get<string[]>(`wtx:list:${ownerEmail}`)) || []
+    if (!ids.length) return []
+    const txs = await store.mget<WalletTransaction>(...ids.map((id) => `wtx:${id}`))
+    return txs.filter(Boolean) as WalletTransaction[]
   },
 
   /** Crée les stickers associés à une commande.
@@ -866,6 +942,8 @@ export type Order = {
   customerName: string | null
   customerPhone: string | null
   customerNote: string | null
+  /** Type de commande : 'order' (achat stickers) ou 'recharge' (dépôt sur solde wallet) */
+  type?: 'order' | 'recharge'
   createdAt: string
   updatedAt: string
   paidAt: string | null
@@ -881,4 +959,26 @@ export type OrderInput = {
   customerName?: string | null
   customerPhone?: string | null
   customerNote?: string | null
+  type?: 'order' | 'recharge'
+}
+
+/* ---------------- Types Wallet ---------------- */
+
+export type Wallet = {
+  ownerEmail: string // clé primaire (email Google de l'utilisateur)
+  balance: number // solde en FCFA
+  createdAt: string
+  updatedAt: string
+}
+
+export type WalletTransaction = {
+  id: string
+  ownerEmail: string
+  /** 'deposit' (recharge) ou 'order_payment' (achat avec solde) */
+  type: 'deposit' | 'order_payment'
+  /** Montant en FCFA (positif pour deposit, négatif pour order_payment) */
+  amount: number
+  /** ID de la commande liée (recharge ou order payée) */
+  orderId?: string | null
+  createdAt: string
 }

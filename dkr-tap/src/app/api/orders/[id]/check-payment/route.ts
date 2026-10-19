@@ -68,15 +68,36 @@ export async function GET(
     if (result.received) {
       // Paiement détecté → marquer la commande comme payée
       // ⚠️ db.updateOrderStatus('paid') crée AUTOMATIQUEMENT les stickers associés
+      // pour les commandes 'order', et active les stickers existants
+      // Pour les commandes 'recharge' → addWalletTransaction est appelé ci-dessous
       const updated = await db.updateOrderStatus(id, 'paid')
-      console.log(
-        `[check-payment] ✓ Commande ${id} marquée "paid" — montant ${expectedAmount} FCFA reçu via Wave (tx: ${result.transactionId || 'N/A'})`
-      )
+
+      // Si c'est une recharge → ajouter le montant au solde wallet de l'acheteur
+      if (order.type === 'recharge' && order.customerName) {
+        try {
+          await db.addWalletTransaction(
+            order.customerName,
+            'deposit',
+            order.totalAfter, // positif = ajoute au solde
+            id
+          )
+          console.log(
+            `[check-payment] ✓ Recharge ${id} — ${order.totalAfter} FCFA ajoutés au wallet de ${order.customerName}`
+          )
+        } catch (e) {
+          console.error('[check-payment] Erreur ajout wallet pour recharge', id, e)
+        }
+      } else {
+        console.log(
+          `[check-payment] ✓ Commande ${id} marquée "paid" — montant ${expectedAmount} FCFA reçu via Wave (tx: ${result.transactionId || 'N/A'})`
+        )
+      }
       return NextResponse.json({
         status: 'paid',
         paid: true,
         justPaid: true,
         amount: expectedAmount,
+        type: order.type || 'order',
         transactionId: result.transactionId || null,
         paidAt: updated?.paidAt || new Date().toISOString(),
       })
