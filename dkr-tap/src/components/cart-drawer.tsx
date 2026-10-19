@@ -78,6 +78,9 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
   const [customerPhone, setCustomerPhone] = useState('')
   const [submittingOrder, setSubmittingOrder] = useState(false)
   const [lastOrderId, setLastOrderId] = useState<string | null>(null)
+  // États pour le polling de paiement
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'waiting' | 'paid' | 'timeout' | 'error'>('idle')
+  const [pollCount, setPollCount] = useState(0)
 
   // Pré-remplir le nom avec l'email de l'utilisateur connecté
   useEffect(() => {
@@ -132,6 +135,73 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
     window.addEventListener('cart:add', onAdd as EventListener)
     return () => window.removeEventListener('cart:add', onAdd as EventListener)
   }, [])
+
+  // ⚡ POLLING AUTOMATIQUE : vérifie le paiement Wave toutes les 15s
+  // pendant 30 minutes (max 120 polls) dès qu'une commande est en attente
+  useEffect(() => {
+    if (!lastOrderId) return
+    if (paymentStatus === 'paid' || paymentStatus === 'timeout') return
+
+    let cancelled = false
+    const POLL_INTERVAL_MS = 15_000 // 15 secondes entre 2 vérifs
+    const MAX_POLLS = 120 // 120 × 15s = 30 minutes max
+
+    const poll = async () => {
+      if (cancelled) return
+      if (pollCount >= MAX_POLLS) {
+        setPaymentStatus('timeout')
+        return
+      }
+      try {
+        const res = await fetch(`/api/orders/${lastOrderId}/check-payment`, {
+          cache: 'no-store',
+        })
+        if (cancelled) return
+        if (res.ok) {
+          const data = await res.json()
+          if (data.paid) {
+            setPaymentStatus('paid')
+            // Vider le panier après 1.5s pour laisser le temps au message de succès de s'afficher
+            setTimeout(() => {
+              setCart({})
+              try {
+                localStorage.removeItem(STORAGE_KEY)
+              } catch {}
+              // Déclencher un refresh du compteur de la navbar
+              window.dispatchEvent(new Event('cart:add'))
+            }, 1500)
+            return
+          }
+        }
+      } catch (e) {
+        console.warn('[poll] Erreur vérif paiement', e)
+      }
+      setPollCount((c) => c + 1)
+    }
+
+    // Premier poll immédiat (au bout de 5s pour laisser le temps au client d'aller sur Wave)
+    const initialTimeout = setTimeout(poll, 5000)
+    // Puis poll toutes les 15s
+    const interval = setInterval(poll, POLL_INTERVAL_MS)
+
+    return () => {
+      cancelled = true
+      clearTimeout(initialTimeout)
+      clearInterval(interval)
+    }
+  }, [lastOrderId, paymentStatus, pollCount])
+
+  // Reset du status quand on ferme le panier (après succès)
+  useEffect(() => {
+    if (!open && paymentStatus === 'paid') {
+      const t = setTimeout(() => {
+        setLastOrderId(null)
+        setPaymentStatus('idle')
+        setPollCount(0)
+      }, 2000)
+      return () => clearTimeout(t)
+    }
+  }, [open, paymentStatus])
 
   // Bloquer le scroll body quand le drawer est ouvert
   useEffect(() => {
@@ -536,26 +606,109 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                         if (waveUrl !== '#') {
                           window.open(waveUrl, '_blank', 'noopener,noreferrer')
                         }
+                        // ⚡ Démarrer le polling de vérification de paiement
+                        setPaymentStatus('waiting')
+                        setPollCount(0)
                       } catch (e) {
                         alert('Erreur lors de la création de la commande : ' + (e as Error).message)
                       } finally {
                         setSubmittingOrder(false)
                       }
                     }}
-                    disabled={submittingOrder}
+                    disabled={submittingOrder || paymentStatus === 'waiting' || paymentStatus === 'paid'}
                     className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-emerald-500 text-black font-bold text-lg hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <ShoppingBag size={20} />
                     {submittingOrder
                       ? 'Création de la commande…'
+                      : paymentStatus === 'paid'
+                      ? 'Paiement confirmé !'
+                      : paymentStatus === 'waiting'
+                      ? 'En attente de paiement Wave…'
                       : `Payer ${totalAfter.toLocaleString('fr-FR')} FCFA avec Wave`}
                   </button>
 
-                  {lastOrderId && !submittingOrder && (
+                  {/* Statut de vérification du paiement */}
+                  {lastOrderId && !submittingOrder && paymentStatus === 'idle' && (
                     <p className="text-xs text-emerald-400 text-center flex items-center justify-center gap-1.5">
                       <CheckCircle2 size={12} />
                       Commande <strong>{lastOrderId}</strong> enregistrée. Confirmez-la au {BRAND_PHONE}.
                     </p>
+                  )}
+
+                  {paymentStatus === 'waiting' && lastOrderId && (
+                    <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-2">
+                      <p className="text-xs text-yellow-400 flex items-center justify-center gap-1.5 font-semibold">
+                        <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                        </svg>
+                        En attente de votre paiement Wave…
+                      </p>
+                      <p className="text-[11px] text-zinc-400 text-center">
+                        Vérification automatique toutes les 15s. La commande sera
+                        confirmée automatiquement dès réception du paiement.
+                      </p>
+                      <p className="text-[11px] text-zinc-500 text-center">
+                        Commande : <strong className="text-zinc-300">{lastOrderId}</strong>
+                        {pollCount > 0 && ` • vérif ${pollCount}/120`}
+                      </p>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/orders/${lastOrderId}/check-payment`, { cache: 'no-store' })
+                            if (res.ok) {
+                              const data = await res.json()
+                              if (data.paid) {
+                                setPaymentStatus('paid')
+                                setTimeout(() => {
+                                  setCart({})
+                                  try { localStorage.removeItem(STORAGE_KEY) } catch {}
+                                  window.dispatchEvent(new Event('cart:add'))
+                                }, 1500)
+                              } else {
+                                // Forcer un re-poll
+                                setPollCount((c) => c + 1)
+                              }
+                            }
+                          } catch (e) {
+                            console.warn('Erreur check manuel', e)
+                          }
+                        }}
+                        className="w-full text-xs text-zinc-300 hover:text-white border border-zinc-700 hover:border-zinc-500 rounded-lg py-1.5"
+                      >
+                        Revérifier maintenant
+                      </button>
+                    </div>
+                  )}
+
+                  {paymentStatus === 'paid' && lastOrderId && (
+                    <div className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 p-3 space-y-2">
+                      <p className="text-sm text-emerald-400 flex items-center justify-center gap-1.5 font-bold">
+                        <CheckCircle2 size={16} />
+                        Paiement confirmé ! 🎉
+                      </p>
+                      <p className="text-xs text-zinc-300 text-center">
+                        Commande <strong>{lastOrderId}</strong> marquée comme payée.
+                      </p>
+                      <p className="text-[11px] text-zinc-500 text-center">
+                        {session?.user?.email ? (
+                          <>Tes cartes QR sont disponibles dans <a href="/account" className="text-emerald-400 hover:underline">Mon compte</a> — tu peux configurer leur lien.</>
+                        ) : (
+                          <>Connecte-toi avec Google dans <a href="/account" className="text-emerald-400 hover:underline">Mon compte</a> pour configurer tes cartes QR.</>
+                        )}
+                      </p>
+                    </div>
+                  )}
+
+                  {paymentStatus === 'timeout' && lastOrderId && (
+                    <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-3 space-y-2">
+                      <p className="text-xs text-orange-400 flex items-center justify-center gap-1.5 font-semibold">
+                        Vérification arrêtée (30 min écoulées)
+                      </p>
+                      <p className="text-[11px] text-zinc-400 text-center">
+        Si tu as payé, appelle le <a href={`tel:${BRAND_PHONE.replace(/\s/g, '')}`} className="text-emerald-400 hover:underline">{BRAND_PHONE}</a> pour confirmer manuellement.
+      </p>
+                    </div>
                   )}
 
                   <div className="flex items-center justify-between">
