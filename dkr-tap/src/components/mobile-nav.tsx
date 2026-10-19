@@ -14,9 +14,9 @@ type Props = {
 }
 
 const LINKS = [
-  { href: '#modeles', label: 'Modèles' },
-  { href: '#tarifs', label: 'Tarifs' },
-  { href: '#commander', label: 'Commander' },
+  { href: '/#modeles', label: 'Modèles' },
+  { href: '/#tarifs', label: 'Tarifs' },
+  { href: '/#commander', label: 'Commander' },
 ]
 
 export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenCart }: Props) {

@@ -142,7 +142,7 @@ export default async function LandingPage() {
               </svg>
             </a>
             <a
-              href="#modeles"
+              href="/#modeles"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-zinc-800 text-white font-semibold hover:bg-zinc-700 transition-colors"
             >
               Voir les modèles
@@ -419,9 +419,9 @@ export default async function LandingPage() {
           </div>
 
           <div className="flex items-center gap-6 text-sm">
-            <a href="#modeles" className="text-zinc-500 hover:text-white transition-colors">Modèles</a>
-            <a href="#tarifs" className="text-zinc-500 hover:text-white transition-colors">Tarifs</a>
-            <a href="#commander" className="text-zinc-500 hover:text-white transition-colors">Commander</a>
+            <a href="/#modeles" className="text-zinc-500 hover:text-white transition-colors">Modèles</a>
+            <a href="/#tarifs" className="text-zinc-500 hover:text-white transition-colors">Tarifs</a>
+            <a href="/#commander" className="text-zinc-500 hover:text-white transition-colors">Commander</a>
             <Link
               href="/admin"
               className="text-zinc-700 hover:text-zinc-400 transition-colors text-xs"

@@ -22,9 +22,9 @@ type Props = {
 }
 
 const LINKS = [
-  { href: '#modeles', label: 'Modèles' },
-  { href: '#tarifs', label: 'Tarifs' },
-  { href: '#commander', label: 'Commander' },
+  { href: '/#modeles', label: 'Modèles' },
+  { href: '/#tarifs', label: 'Tarifs' },
+  { href: '/#commander', label: 'Commander' },
 ]
 
 // Le panier est mis à jour via un event 'cart:add'. On écoute aussi cet event
