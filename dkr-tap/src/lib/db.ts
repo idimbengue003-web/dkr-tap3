@@ -822,6 +822,46 @@ export const db = {
     return txs.filter(Boolean) as WalletTransaction[]
   },
 
+  /* ============ USER PROFILE (infos de livraison) ============ */
+
+  /** Récupère ou crée le profil d'un utilisateur (par email Google) */
+  async getProfile(email: string): Promise<UserProfile> {
+    const ownerEmail = email.toLowerCase().trim()
+    const existing = await store.get<UserProfile>(`profile:${ownerEmail}`)
+    if (existing) return existing
+    const now = new Date().toISOString()
+    const profile: UserProfile = {
+      ownerEmail,
+      fullName: null,
+      phone: null,
+      city: null,
+      address: null,
+      deliveryNote: null,
+      createdAt: now,
+      updatedAt: now,
+    }
+    await store.set(`profile:${ownerEmail}`, profile)
+    return profile
+  },
+
+  /** Met à jour le profil d'un utilisateur */
+  async updateProfile(email: string, updates: Partial<Omit<UserProfile, 'ownerEmail' | 'createdAt' | 'updatedAt'>>): Promise<UserProfile | null> {
+    const ownerEmail = email.toLowerCase().trim()
+    const existing = await store.get<UserProfile>(`profile:${ownerEmail}`)
+    if (!existing) {
+      // Créer s'il n'existe pas
+      const fresh = await this.getProfile(ownerEmail)
+      return this.updateProfile(email, updates)
+    }
+    const updated: UserProfile = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    }
+    await store.set(`profile:${ownerEmail}`, updated)
+    return updated
+  },
+
   /** Crée les stickers associés à une commande.
    *  Appelée :
    *  - Automatiquement par POST /api/orders avec active=false (cartes visibles
@@ -981,4 +1021,17 @@ export type WalletTransaction = {
   /** ID de la commande liée (recharge ou order payée) */
   orderId?: string | null
   createdAt: string
+}
+
+/* ---------------- Types Profil Utilisateur ---------------- */
+
+export type UserProfile = {
+  ownerEmail: string // clé primaire (email Google)
+  fullName: string | null
+  phone: string | null
+  city: string | null
+  address: string | null // rue, quartier, numéro...
+  deliveryNote: string | null // repère, étage, instructions livraison
+  createdAt: string
+  updatedAt: string
 }

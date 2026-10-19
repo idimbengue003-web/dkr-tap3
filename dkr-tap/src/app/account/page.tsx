@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, QrCode, ExternalLink, LogOut, Save, Check, Loader2, Smartphone } from 'lucide-react'
+import { Package, QrCode, ExternalLink, LogOut, Save, Check, Loader2, Smartphone, User, MapPin, Phone, Home, FileText, Wallet } from 'lucide-react'
 import { Navbar } from '@/components/navbar'
 import { db } from '@/lib/db' // server side only — won't be used here, using fetch instead
 
@@ -35,6 +35,15 @@ type Sticker = {
   updatedAt: string
   buyerEmail?: string | null
   orderId?: string | null
+}
+
+type Profile = {
+  ownerEmail: string
+  fullName: string | null
+  phone: string | null
+  city: string | null
+  address: string | null
+  deliveryNote: string | null
 }
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
@@ -77,22 +86,41 @@ export default function AccountPage() {
   const { data: session, status } = useSession()
   const [orders, setOrders] = useState<Order[]>([])
   const [stickers, setStickers] = useState<Sticker[]>([])
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingStickerId, setEditingStickerId] = useState<string | null>(null)
   const [editUrl, setEditUrl] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
   const [savedId, setSavedId] = useState<string | null>(null)
+  // États pour le formulaire de profil
+  const [profileForm, setProfileForm] = useState({
+    fullName: '', phone: '', city: '', address: '', deliveryNote: '',
+  })
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
 
   const loadData = useCallback(async () => {
     if (!session?.user?.email) return
     setLoading(true)
     try {
-      const [ordersRes, stickersRes] = await Promise.all([
+      const [ordersRes, stickersRes, profileRes] = await Promise.all([
         fetch('/api/my/orders', { cache: 'no-store' }),
         fetch('/api/my/stickers', { cache: 'no-store' }),
+        fetch('/api/my/profile', { cache: 'no-store' }),
       ])
       if (ordersRes.ok) setOrders(await ordersRes.json())
       if (stickersRes.ok) setStickers(await stickersRes.json())
+      if (profileRes.ok) {
+        const p = await profileRes.json()
+        setProfile(p)
+        setProfileForm({
+          fullName: p.fullName || '',
+          phone: p.phone || '',
+          city: p.city || '',
+          address: p.address || '',
+          deliveryNote: p.deliveryNote || '',
+        })
+      }
     } catch (e) {
       console.error('Erreur chargement données', e)
     } finally {
@@ -107,6 +135,27 @@ export default function AccountPage() {
       setLoading(false)
     }
   }, [status, loadData])
+
+  const saveProfile = async () => {
+    if (savingProfile) return
+    setSavingProfile(true)
+    try {
+      const res = await fetch('/api/my/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileForm),
+      })
+      if (!res.ok) throw new Error('Échec sauvegarde')
+      const updated = await res.json()
+      setProfile(updated)
+      setProfileSaved(true)
+      setTimeout(() => setProfileSaved(false), 2500)
+    } catch (e) {
+      alert('Erreur: ' + (e as Error).message)
+    } finally {
+      setSavingProfile(false)
+    }
+  }
 
   const saveSticker = async (id: string) => {
     setSavingId(id)
@@ -213,6 +262,133 @@ export default function AccountPage() {
               </div>
             ) : (
               <>
+                {/* Profil de livraison */}
+                <section>
+                  <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                    <User size={20} className="text-emerald-400" />
+                    Profil de livraison
+                  </h2>
+
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-4">
+                    <p className="text-xs text-zinc-400">
+                      Ces informations sont utilisées pour la livraison de vos cartes QR.
+                      Elles seront enregistrées pour vos futures commandes.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Nom complet */}
+                      <div>
+                        <label className="text-xs text-zinc-400 mb-1 block flex items-center gap-1">
+                          <User size={11} /> Nom complet
+                        </label>
+                        <input
+                          type="text"
+                          value={profileForm.fullName}
+                          onChange={(e) => setProfileForm((f) => ({ ...f, fullName: e.target.value }))}
+                          placeholder="Ex: Aïssatou Diop"
+                          className="w-full px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-sm focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      {/* Téléphone */}
+                      <div>
+                        <label className="text-xs text-zinc-400 mb-1 block flex items-center gap-1">
+                          <Phone size={11} /> Numéro de téléphone
+                        </label>
+                        <input
+                          type="tel"
+                          value={profileForm.phone}
+                          onChange={(e) => setProfileForm((f) => ({ ...f, phone: e.target.value }))}
+                          placeholder="Ex: 78 123 45 67"
+                          className="w-full px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-sm focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      {/* Ville */}
+                      <div>
+                        <label className="text-xs text-zinc-400 mb-1 block flex items-center gap-1">
+                          <MapPin size={11} /> Ville
+                        </label>
+                        <input
+                          type="text"
+                          value={profileForm.city}
+                          onChange={(e) => setProfileForm((f) => ({ ...f, city: e.target.value }))}
+                          placeholder="Ex: Dakar, Pikine, Thies..."
+                          className="w-full px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-sm focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      {/* Quartier/Adresse */}
+                      <div>
+                        <label className="text-xs text-zinc-400 mb-1 block flex items-center gap-1">
+                          <Home size={11} /> Adresse (rue, quartier, numéro)
+                        </label>
+                        <input
+                          type="text"
+                          value={profileForm.address}
+                          onChange={(e) => setProfileForm((f) => ({ ...f, address: e.target.value }))}
+                          placeholder="Ex: Rue 10, Médina, à côté de la mosquée"
+                          className="w-full px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-sm focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Note de livraison (textarea) */}
+                    <div>
+                      <label className="text-xs text-zinc-400 mb-1 block flex items-center gap-1">
+                        <FileText size={11} /> Instructions de livraison (optionnel)
+                      </label>
+                      <textarea
+                        value={profileForm.deliveryNote}
+                        onChange={(e) => setProfileForm((f) => ({ ...f, deliveryNote: e.target.value }))}
+                        rows={3}
+                        placeholder="Ex: Appeler avant de livrer, demander à un voisin, repère près de l'arrêt de bus..."
+                        className="w-full px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-sm focus:outline-none focus:border-emerald-500 resize-none"
+                      />
+                    </div>
+
+                    {/* Bouton sauvegarder */}
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      {profileSaved && (
+                        <p className="text-xs text-emerald-400 flex items-center gap-1.5">
+                          <Check size={12} /> Profil enregistré !
+                        </p>
+                      )}
+                      <button
+                        onClick={saveProfile}
+                        disabled={savingProfile}
+                        className="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-black font-semibold text-sm hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {savingProfile ? (
+                          <><Loader2 size={14} className="animate-spin" /> Enregistrement…</>
+                        ) : profileSaved ? (
+                          <><Check size={14} /> Enregistré</>
+                        ) : (
+                          <><Save size={14} /> Enregistrer mon profil</>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Résumé des infos complétées */}
+                    {profile && (
+                      <div className="mt-3 pt-3 border-t border-zinc-800 text-xs text-zinc-500 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className={profile.fullName ? 'text-emerald-400' : 'text-zinc-600'}>
+                          Nom: {profile.fullName ? '✓' : '✗'}
+                        </div>
+                        <div className={profile.phone ? 'text-emerald-400' : 'text-zinc-600'}>
+                          Tél: {profile.phone ? '✓' : '✗'}
+                        </div>
+                        <div className={profile.city ? 'text-emerald-400' : 'text-zinc-600'}>
+                          Ville: {profile.city ? '✓' : '✗'}
+                        </div>
+                        <div className={profile.address ? 'text-emerald-400' : 'text-zinc-600'}>
+                          Adresse: {profile.address ? '✓' : '✗'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
                 {/* Commandes */}
                 <section>
                   <h2 className="text-lg font-bold mb-4 flex items-center gap-2">

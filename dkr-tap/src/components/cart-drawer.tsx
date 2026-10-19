@@ -85,11 +85,21 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
   const [walletBalance, setWalletBalance] = useState(0)
   const [payingFromWallet, setPayingFromWallet] = useState(false)
 
-  // Pré-remplir le nom avec l'email de l'utilisateur connecté
+  // Pré-remplir le nom + téléphone avec le profil de l'utilisateur connecté
   useEffect(() => {
-    if (session?.user?.email && !customerName) {
-      setCustomerName(session.user.email)
-    }
+    if (!session?.user?.email) return
+    // Charger le profil pour pré-remplir le nom + téléphone
+    fetch('/api/my/profile', { cache: 'no-store' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((p) => {
+        if (!p) return
+        setCustomerName((cur) => cur || p.fullName || session.user!.email || '')
+        setCustomerPhone((cur) => cur || p.phone || '')
+      })
+      .catch(() => {
+        // Fallback: utiliser l'email comme nom
+        if (!customerName) setCustomerName(session.user.email || '')
+      })
   }, [session?.user?.email, customerName])
 
   // Charger le solde wallet de l'utilisateur connecté
