@@ -149,12 +149,6 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
                   <Phone size={18} />
                   {brandPhone}
                 </a>
-                <a
-                  href="/admin"
-                  className="block text-center text-xs text-zinc-600 hover:text-zinc-400 py-1"
-                >
-                  Espace Gestion
-                </a>
               </div>
             </motion.div>
           </motion.div>

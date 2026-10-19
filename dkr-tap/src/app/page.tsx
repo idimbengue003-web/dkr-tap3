@@ -422,13 +422,6 @@ export default async function LandingPage() {
             <a href="/#modeles" className="text-zinc-500 hover:text-white transition-colors">Modèles</a>
             <a href="/#tarifs" className="text-zinc-500 hover:text-white transition-colors">Tarifs</a>
             <a href="/#commander" className="text-zinc-500 hover:text-white transition-colors">Commander</a>
-            <Link
-              href="/admin"
-              className="text-zinc-700 hover:text-zinc-400 transition-colors text-xs"
-              title="Espace gestion"
-            >
-              Gestion
-            </Link>
           </div>
 
           <p className="text-xs text-zinc-600">
