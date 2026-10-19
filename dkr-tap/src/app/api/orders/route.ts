@@ -56,6 +56,15 @@ export async function POST(request: NextRequest) {
     }
 
     const order = await db.createOrder(input)
+    // ⚡ Créer immédiatement les stickers associés (active=false car pas encore payé)
+    // → l'acheteur peut les voir dans /account tout de suite et pré-configurer les URLs
+    // → ils seront activés (active=true) automatiquement quand la commande passera en 'paid'
+    try {
+      await db.createStickersForOrder(order.id, false)
+    } catch (e) {
+      console.error('[POST /api/orders] Erreur création stickers initiaux pour', order.id, e)
+      // Ne pas faire échouer la création de commande pour autant
+    }
     return NextResponse.json(order, { status: 201 })
   } catch (error) {
     console.error('[POST /api/orders]', error)

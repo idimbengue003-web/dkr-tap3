@@ -698,19 +698,27 @@ export const db = {
       updatedAt: now,
     }
     await store.set(`order:${id}`, updated)
-    // Auto-création des stickers quand la commande passe à "paid"
-    // (une seule fois — si les stickers ont déjà été créés pour cette commande, on ne refait pas)
+    // Activation des stickers quand la commande passe à "paid"
+    // 2 cas possibles :
+    // 1. Les stickers ont déjà été créés (par POST /api/orders, en active=false)
+    //    → on les active (active=true) pour qu'ils soient scannables
+    // 2. Les stickers n'existent pas encore (ancienne commande sans stickers auto)
+    //    → on les crée maintenant en active=true
     if (status === 'paid' && existing.status !== 'paid') {
       try {
         const existingStickers = (await store.get<string[]>('stickers:list')) || []
         const alreadyHasStickers = existingStickers.some(
           (slug) => slug.startsWith(`cmd-${id}-`)
         )
-        if (!alreadyHasStickers) {
-          await this.createStickersForOrder(id)
+        if (alreadyHasStickers) {
+          // Cas 1 : les stickers existent (créés en inactive) → les activer
+          await this.activateStickersForOrder(id)
+        } else {
+          // Cas 2 : les stickers n'existent pas → les créer en active=true
+          await this.createStickersForOrder(id, true)
         }
       } catch (e) {
-        console.error('[updateOrderStatus] Erreur création stickers pour commande', id, e)
+        console.error('[updateOrderStatus] Erreur activation stickers pour commande', id, e)
       }
     }
     return updated
@@ -738,10 +746,13 @@ export const db = {
     )
   },
 
-  /** Crée les stickers associés à une commande quand elle passe en "paid"
-   *  (appelé automatiquement par updateOrderStatus ou manuellement par l'admin)
-   *  Retourne les stickers créés. */
-  async createStickersForOrder(orderId: string): Promise<Sticker[]> {
+  /** Crée les stickers associés à une commande.
+   *  Appelée :
+   *  - Automatiquement par POST /api/orders avec active=false (cartes visibles
+   *    dans /account mais QR pas encore scannable tant que paiement non reçu)
+   *  - Automatiquement par updateOrderStatus('paid') si les stickers n'existent
+   *    pas encore (sécurité) avec active=true */
+  async createStickersForOrder(orderId: string, active: boolean = true): Promise<Sticker[]> {
     const order = await this.getOrder(orderId)
     if (!order) return []
     const buyerEmail = order.customerName || order.customerPhone || null
@@ -760,7 +771,7 @@ export const db = {
           slug,
           label: `${item.name} #${i + 1} (cmd ${orderId})`,
           targetUrl: null,
-          active: true,
+          active, // ⚠️ false tant que la commande n'est pas payée
           buyerEmail,
           orderId,
         })
@@ -768,6 +779,24 @@ export const db = {
       }
     }
     return created
+  },
+
+  /** Active tous les stickers d'une commande (quand elle passe en 'paid') */
+  async activateStickersForOrder(orderId: string): Promise<number> {
+    const all = (await store.get<string[]>('stickers:list')) || []
+    const orderSlugPrefix = `cmd-${orderId}-`
+    const targetSlugs = all.filter((s) => s.startsWith(orderSlugPrefix))
+    for (const slug of targetSlugs) {
+      const existing = await store.get<Sticker>(`sticker:${slug}`)
+      if (existing && !existing.active) {
+        await store.set(`sticker:${slug}`, {
+          ...existing,
+          active: true,
+          updatedAt: new Date().toISOString(),
+        })
+      }
+    }
+    return targetSlugs.length
   },
 
   /** Liste tous les stickers d'un acheteur (par email) */

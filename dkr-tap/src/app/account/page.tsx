@@ -289,9 +289,16 @@ export default function AccountPage() {
                     <div className="text-center py-8 border border-dashed border-zinc-800 rounded-xl">
                       <p className="text-zinc-400 mb-1">Aucune carte QR pour l'instant</p>
                       <p className="text-xs text-zinc-600">
-                        Dès qu'une commande est marquée « Payée », vos cartes QR apparaissent ici.
-                        Vous pourrez alors configurer le lien de redirection de chacune.
+                        Dès que vous passez une commande, vos cartes QR apparaissent ici.
+                        Vous pouvez pré-configurer leur lien de redirection immédiatement —
+                        elles seront activées (scannables) dès réception du paiement Wave.
                       </p>
+                      <a
+                        href="/#modeles"
+                        className="inline-flex items-center gap-1 mt-3 text-sm text-emerald-400 hover:underline"
+                      >
+                        Commander des cartes →
+                      </a>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -299,19 +306,57 @@ export default function AccountPage() {
                         const isEditing = editingStickerId === s.id
                         const isSaving = savingId === s.id
                         const isSaved = savedId === s.id
+                        // Chercher la commande dont ce sticker est issu
+                        const parentOrder = s.orderId ? orders.find((o) => o.id === s.orderId.replace('ord_', '').startsWith(o.id.slice(4)) ? true : false) : null
+                        // Plus simple : comparer orderId (qui peut être 'ord_xxx' dans sticker, et order.id est déjà 'ord_xxx')
+                        const matchingOrder = s.orderId
+                          ? orders.find((o) => o.id === s.orderId || `ord_${o.id}` === s.orderId || o.id === s.orderId.replace('ord_', ''))
+                          : null
+                        const orderStatus = matchingOrder?.status || null
+                        const isPending = orderStatus === 'pending'
+                        const isPaid = orderStatus === 'paid' || orderStatus === 'confirmed'
                         return (
-                          <div key={s.id} className="rounded-xl border border-zinc-800 p-4 bg-zinc-900/50">
+                          <div
+                            key={s.id}
+                            className={`rounded-xl border p-4 bg-zinc-900/50 ${
+                              isPending
+                                ? 'border-yellow-500/40'
+                                : isPaid
+                                ? 'border-emerald-500/40'
+                                : 'border-zinc-800'
+                            }`}
+                          >
                             <div className="flex items-start gap-4">
                               {/* QR placeholder */}
-                              <div className="w-16 h-16 shrink-0 rounded-lg bg-white flex items-center justify-center">
-                                <QrCode size={32} className="text-black" />
+                              <div className="w-16 h-16 shrink-0 rounded-lg bg-white flex items-center justify-center relative">
+                                <QrCode size={32} className={isPending ? 'text-zinc-400' : 'text-black'} />
+                                {isPending && (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-lg">
+                                    <span className="text-[8px] font-bold text-zinc-500 rotate-12">PENDING</span>
+                                  </div>
+                                )}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-baseline justify-between gap-2 mb-1">
+                                <div className="flex items-baseline justify-between gap-2 mb-1 flex-wrap">
                                   <p className="font-semibold text-sm truncate">{s.label || 'Carte QR'}</p>
-                                  <span className="text-xs text-zinc-500 shrink-0">
-                                    {s.scanCount} scan{s.scanCount > 1 ? 's' : ''}
-                                  </span>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {isPending && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 flex items-center gap-1">
+                                        <svg className="animate-pulse" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                        </svg>
+                                        En attente de paiement
+                                      </span>
+                                    )}
+                                    {isPaid && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                                        Activée
+                                      </span>
+                                    )}
+                                    <span className="text-xs text-zinc-500">
+                                      {s.scanCount} scan{s.scanCount > 1 ? 's' : ''}
+                                    </span>
+                                  </div>
                                 </div>
                                 <p className="font-mono text-xs text-zinc-500 mb-2">
                                   /api/r/{s.slug}
