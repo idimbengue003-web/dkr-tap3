@@ -401,7 +401,7 @@ export default function RechargerPage() {
           <p className="font-semibold text-zinc-300 mb-1">💡 Comment ça marche ?</p>
           <p>
             Vous rechargez votre solde via Wave (5000, 10000, 20000 FCFA ou montant personnalisé).
-            Le paiement est détecté automatiquement par l'API Wave Business (15-30 secondes).
+            Le paiement est détecté automatiquement entre (15-30 secondes).
             Votre solde est ensuite immédiatement disponible pour payer vos commandes sans repasser par Wave.
           </p>
         </div>
