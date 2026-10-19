@@ -24,6 +24,10 @@ export const metadata: Metadata = {
   icons: {
     icon: "/scanbridge-logo.svg",
   },
+  // Vérification Google Search Console (pour l'indexation SEO)
+  verification: {
+    google: "JadpuScNP60RSUIJSPaG_iwf0mOGVL_nT-P21NiyzIs",
+  },
   openGraph: {
     title: `${BRAND_NAME} — Cartes QR pour vos réseaux sociaux`,
     description: "Vos cartes QR DKR TAP redirigent vos clients directement vers vos réseaux sociaux. TikTok, Instagram, Google, WhatsApp — choisissez votre réseau, on s'occupe du reste. Vos clients scannent, votre audience grandit.",
