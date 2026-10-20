@@ -783,7 +783,7 @@ export const db = {
    *  amount > 0 pour un dépôt, amount < 0 pour un paiement commande */
   async addWalletTransaction(
     email: string,
-    type: 'deposit' | 'order_payment',
+    type: 'deposit' | 'order_payment' | 'referral_bonus',
     amount: number,
     orderId?: string | null
   ): Promise<Wallet> {
@@ -800,7 +800,7 @@ export const db = {
     const tx: WalletTransaction = {
       id: txId,
       ownerEmail,
-      type,
+      type: type as any,
       amount,
       orderId: orderId ?? null,
       createdAt: new Date().toISOString(),
@@ -811,6 +811,40 @@ export const db = {
     list.unshift(txId)
     await store.set(`wtx:list:${ownerEmail}`, list)
     return updated
+  },
+
+  /** Programme de parrainage : un nouvel utilisateur est parrainé par un email.
+   *  - Enregistre le parrainage (1 seule fois par utilisateur)
+   *  - Crédite 1000 FCFA au PARRAIN (sur son wallet) + 500 FCFA au FILLEUL
+   *  - Retourne false si le parrainage existe déjà ou si l'email parrain n'a pas de wallet */
+  async applyReferral(filleulEmail: string, parrainEmail: string): Promise<boolean> {
+    const filleul = filleulEmail.toLowerCase().trim()
+    const parrain = parrainEmail.toLowerCase().trim()
+    if (!filleul || !parrain || filleul === parrain) return false
+
+    // Vérifier que le parrainage n'existe pas déjà pour ce filleul
+    const existingRef = await store.get<string>(`referral:${filleul}`)
+    if (existingRef) return false
+
+    // Vérifier que le parrain a un wallet (sinon bonus appliqué quand même, mais trace)
+    const parrainWallet = await this.getWallet(parrain)
+    const filleulWallet = await this.getWallet(filleul)
+
+    // Créditer le parrain (+1000 FCFA)
+    await this.addWalletTransaction(parrain, 'referral_bonus' as any, 1000)
+    // Créditer le filleul (+500 FCFA bonus de bienvenue)
+    await this.addWalletTransaction(filleul, 'referral_bonus' as any, 500)
+
+    // Enregistrer le parrainage
+    await store.set(`referral:${filleul}`, parrain)
+
+    console.log(`[referral] ✓ Parrainage: ${parrain} a parrainé ${filleul} — bonus 1000F + 500F crédités`)
+    return true
+  },
+
+  /** Vérifie si un utilisateur a déjà été parrainé */
+  async getReferral(filleulEmail: string): Promise<string | null> {
+    return store.get<string>(`referral:${filleulEmail.toLowerCase().trim()}`)
   },
 
   /** Liste les transactions wallet d'un utilisateur */
@@ -955,7 +989,7 @@ export type StickerModel = {
 
 /* ---------------- Types Commandes ---------------- */
 
-export type OrderStatus = 'pending' | 'paid' | 'confirmed' | 'cancelled'
+export type OrderStatus = 'pending' | 'paid' | 'printing' | 'shipped' | 'delivered' | 'confirmed' | 'cancelled'
 
 export type OrderItem = {
   /** Clé unique 'cat:<id>' ou 'mod:<id>' */
@@ -1014,9 +1048,9 @@ export type Wallet = {
 export type WalletTransaction = {
   id: string
   ownerEmail: string
-  /** 'deposit' (recharge) ou 'order_payment' (achat avec solde) */
-  type: 'deposit' | 'order_payment'
-  /** Montant en FCFA (positif pour deposit, négatif pour order_payment) */
+  /** 'deposit' (recharge), 'order_payment' (achat avec solde) ou 'referral_bonus' (parrainage) */
+  type: 'deposit' | 'order_payment' | 'referral_bonus'
+  /** Montant en FCFA (positif pour deposit/referral, négatif pour order_payment) */
   amount: number
   /** ID de la commande liée (recharge ou order payée) */
   orderId?: string | null

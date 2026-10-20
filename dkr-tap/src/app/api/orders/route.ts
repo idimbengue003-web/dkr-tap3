@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, type OrderInput, type OrderItem } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-guard'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 // GET /api/orders — admin only (liste toutes les commandes)
 export async function GET(request: NextRequest) {
@@ -17,7 +18,12 @@ export async function GET(request: NextRequest) {
 
 // POST /api/orders — PUBLIC (les revendeurs créent leur commande avant paiement Wave)
 // Corps attendu : OrderInput (items[], totalQty, totalBefore, totalAfter, discountPct, customerName?, customerPhone?, customerNote?)
+// Rate limit : 5 commandes / IP / heure pour éviter le spam
 export async function POST(request: NextRequest) {
+  // Rate limiting
+  const limit = await checkRateLimit(request, 'orders-create', 5, 60 * 60)
+  if (limit.exceeded) return rateLimitResponse(limit.resetAt)
+
   try {
     const body = await request.json()
 

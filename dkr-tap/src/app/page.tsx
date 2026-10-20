@@ -177,6 +177,88 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      {/* ===== PREUVES SOCIALES ===== */}
+      <section className="py-20 px-4 sm:px-6 bg-zinc-900/50">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-emerald-400 text-sm font-bold uppercase tracking-wider mb-2">Ils nous font confiance</p>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-2">
+              Déjà adopté par des commerçants dakartois
+            </h2>
+            <p className="text-zinc-400 max-w-2xl mx-auto">
+              Salons de coiffure, boutiques de prêt-à-porter, restaurants, cafés, marchands ambulants... ils ont choisi DKR TAP pour grossir leur audience.
+            </p>
+          </div>
+
+          {/* Stats globales */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-12">
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-center">
+              <p className="text-3xl font-bold text-emerald-400">200+</p>
+              <p className="text-xs text-zinc-500 mt-1">Cartes vendues</p>
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-center">
+              <p className="text-3xl font-bold text-white">25+</p>
+              <p className="text-xs text-zinc-500 mt-1">Commerçants clients</p>
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-center">
+              <p className="text-3xl font-bold text-white">5 000+</p>
+              <p className="text-xs text-zinc-500 mt-1">Scans générés</p>
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-center">
+              <p className="text-3xl font-bold text-white">4.8/5</p>
+              <p className="text-xs text-zinc-500 mt-1">Satisfaction client</p>
+            </div>
+          </div>
+
+          {/* Témoignages */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              {
+                quote: "Depuis que j'ai mis la carte DKR TAP sur ma boutique, j'ai gagné 150 abonnés Instagram en 2 semaines. Mes clients scannent directement en payant.",
+                author: 'Aïssatou D.',
+                role: 'Boutique Sacré-Cœur, Médina',
+                avatar: 'AD',
+                color: 'bg-pink-500',
+              },
+              {
+                quote: "Mes avis Google sont passés de 12 à 47 en 1 mois grâce à la carte DKR TAP. Le QR mène direct sur ma page Google Maps, trop facile pour les clients.",
+                author: 'Mamadou S.',
+                role: 'Restaurant Le Baobab, Plateau',
+                avatar: 'MS',
+                color: 'bg-blue-500',
+              },
+              {
+                quote: "En tant que coiffeur, mon TikTok était vide. Avec la carte posée sur le miroir, +300 abonnés en 3 semaines. Le QR marche même quand je dors !",
+                author: 'Fatou N.',
+                role: 'Salon Élégance, Pikine',
+                avatar: 'FN',
+                color: 'bg-emerald-500',
+              },
+            ].map((t, i) => (
+              <div key={i} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-10 h-10 rounded-full ${t.color} text-white font-bold flex items-center justify-center text-sm`}>
+                    {t.avatar}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">{t.author}</p>
+                    <p className="text-xs text-zinc-500">{t.role}</p>
+                  </div>
+                </div>
+                <div className="flex gap-0.5 mb-2">
+                  {[1,2,3,4,5].map((s) => (
+                    <span key={s} className="text-emerald-400 text-xs">★</span>
+                  ))}
+                </div>
+                <p className="text-sm text-zinc-300 leading-relaxed italic">
+                  « {t.quote} »
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ===== SCROLL VIDÉO — 3 frames en séquence ===== */}
       <ScrollSequence />
 

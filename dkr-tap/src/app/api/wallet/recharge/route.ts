@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-google'
 import { db } from '@/lib/db'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 const WAVE_BASE_URL = process.env.NEXT_PUBLIC_WAVE_PAYMENT_URL || '#'
 
@@ -25,6 +26,10 @@ export async function POST(request: NextRequest) {
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Non connecté' }, { status: 401 })
   }
+
+  // Rate limiting : 3 recharges / IP / heure
+  const limit = await checkRateLimit(request, 'wallet-recharge', 3, 60 * 60)
+  if (limit.exceeded) return rateLimitResponse(limit.resetAt)
 
   try {
     const body = await request.json()

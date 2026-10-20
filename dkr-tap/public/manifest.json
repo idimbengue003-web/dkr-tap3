@@ -1,0 +1,59 @@
+{
+  "name": "DKR TAP — Cartes QR pour réseaux sociaux",
+  "short_name": "DKR TAP",
+  "description": "Vos cartes QR DKR TAP redirigent vos clients directement vers vos réseaux sociaux. TikTok, Instagram, Google, WhatsApp — choisissez votre réseau, on s'occupe du reste. Vos clients scannent, votre audience grandit.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#10b981",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "fr",
+  "categories": ["business", "shopping", "productivity"],
+  "icons": [
+    {
+      "src": "/dkrtap-logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/dkrtap-logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/dkrtap-logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/dkrtap-logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mes commandes",
+      "short_name": "Commandes",
+      "url": "/account",
+      "icons": [{ "src": "/dkrtap-logo.jpg", "sizes": "96x96", "type": "image/jpeg" }]
+    },
+    {
+      "name": "Recharger mon solde",
+      "short_name": "Recharger",
+      "url": "/recharger",
+      "icons": [{ "src": "/dkrtap-logo.jpg", "sizes": "96x96", "type": "image/jpeg" }]
+    },
+    {
+      "name": "Voir les modèles",
+      "short_name": "Modèles",
+      "url": "/#modeles",
+      "icons": [{ "src": "/dkrtap-logo.jpg", "sizes": "96x96", "type": "image/jpeg" }]
+    }
+  ]
+}

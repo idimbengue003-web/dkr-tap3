@@ -24,7 +24,9 @@ export const metadata: Metadata = {
   authors: [{ name: BRAND_NAME }],
   icons: {
     icon: "/dkrtap-logo.jpg",
+    apple: "/dkrtap-logo.jpg",
   },
+  manifest: "/manifest.json",
   // Vérification Google Search Console (pour l'indexation SEO)
   verification: {
     google: "JadpuScNP60RSUIJSPaG_iwf0mOGVL_nT-P21NiyzIs",
