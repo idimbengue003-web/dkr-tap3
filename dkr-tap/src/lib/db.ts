@@ -38,6 +38,9 @@ export type Sticker = {
   buyerEmail?: string | null
   /** ID de la commande dont ce sticker est issu (optionnel). */
   orderId?: string | null
+  /** Thème visuel du sticker pour l'impression : 'white' (défaut) | 'black' | 'transparent'.
+   *  Configurable dans l'admin. */
+  stickerTheme?: 'white' | 'black' | 'transparent' | null
   /** Texte d'action personnalisé affiché en haut du sticker.
    *  Si null → utilise le texte par défaut du réseau détecté (ou "Scannez ce QR code"). */
   customActionText?: string | null

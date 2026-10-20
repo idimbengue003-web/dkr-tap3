@@ -88,6 +88,14 @@ export function getEffectiveNetwork(
 }
 
 /**
+ * Thème visuel du sticker (couleur de fond + ajustements de couleur).
+ * - `white` : fond blanc (défaut), texte noir en haut, bande sombre en bas
+ * - `black` : fond noir (dark mode), texte blanc en haut, bande légère en bas
+ * - `transparent` : pas de fond, à imprimer sur papier coloré. Texte noir, pas de bande basse
+ */
+export type StickerTheme = 'white' | 'black' | 'transparent'
+
+/**
  * Génère le SVG complet du sticker 10×10 cm.
  *
  * @param opts.qrSvgString Le SVG (chaîne) du QR code rendu par qrcode.react
@@ -100,6 +108,7 @@ export function getEffectiveNetwork(
  *   Utilisé pour convertir les chemins relatifs ("/dkrtap-logo.jpg") en URLs
  *   absolues. INDISPENSABLE quand le SVG est sérialisé en Blob URL pour générer
  *   un PNG — sinon les <image href="/..."> ne se résolvent pas.
+ * @param opts.theme Thème visuel : 'white' (défaut) | 'black' | 'transparent'
  */
 export function renderStickerSvg(opts: {
   qrSvgString: string
@@ -112,10 +121,44 @@ export function renderStickerSvg(opts: {
   /** Texte d'action personnalisé — si fourni, remplace le texte par défaut du réseau.
    *  Vide/null → utilise le défaut (NETWORKS[network].action ou "Scannez ce QR code"). */
   customActionText?: string | null
+  /** Thème visuel : blanc, noir ou transparent. Défaut : 'white'. */
+  theme?: StickerTheme
 }): string {
   const { qrSvgString, network, publicUrl, brandName, brandLogoUrl } = opts
+  const theme: StickerTheme = opts.theme || 'white'
   const SIZE = 1181 // 10 cm @ 300 DPI
   const net = network ? NETWORKS[network] : null
+
+  // Configuration des couleurs selon le thème
+  const colors = {
+    white: {
+      bg: '<rect width="SIZE" height="SIZE" fill="#ffffff"/>',
+      topTextColor: '#0a0a0a',
+      separatorColor: '#e4e4e7',
+      legendColor: '#71717a',
+      bottomBandColor: '#0a0a0a',
+      taglineColor: '#a1a1aa',
+      phoneColor: '#ffffff',
+    },
+    black: {
+      bg: '<rect width="SIZE" height="SIZE" fill="#0a0a0a"/>',
+      topTextColor: '#ffffff',
+      separatorColor: '#27272a',
+      legendColor: '#a1a1aa',
+      bottomBandColor: '#18181b',
+      taglineColor: '#71717a',
+      phoneColor: '#10b981',
+    },
+    transparent: {
+      bg: '', // Pas de fond — transparent pour impression sur papier coloré
+      topTextColor: '#0a0a0a',
+      separatorColor: '#71717a',
+      legendColor: '#52525b',
+      bottomBandColor: '', // Pas de bande — fond transparent partout
+      taglineColor: '#52525b',
+      phoneColor: '#0a0a0a',
+    },
+  }[theme]
 
   // Convertit un chemin relatif ("/foo.svg") en URL absolue si baseUrl est fourni.
   // Les URLs déjà absolues (http://, https://, data:) sont laissées intactes.
@@ -165,14 +208,14 @@ export function renderStickerSvg(opts: {
     <text x="${SIZE / 2}" y="${actionY}" text-anchor="middle"
           font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
           font-size="${actionFontSize}" font-weight="700"
-          fill="#0a0a0a">${actionEscaped}</text>`
+          fill="${colors.topTextColor}">${actionEscaped}</text>`
     : `
     <!-- Pas de réseau détecté : logo générique + texte simple -->
     <text x="${SIZE / 2}" y="${logoY + LOGO_SIZE / 2}"
           text-anchor="middle"
           font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
           font-size="${actionFontSize}" font-weight="700"
-          fill="#0a0a0a">${actionEscaped}</text>`
+          fill="${colors.topTextColor}">${actionEscaped}</text>`
 
   // === MIDDLE : QR code centré ===
   const QR_SIZE = 460
@@ -207,32 +250,40 @@ export function renderStickerSvg(opts: {
   const taglineY = textCenterY - 6
   const phoneY = textCenterY + 36
 
+  // Bande du bas : uniquement pour white et black (pas pour transparent)
+  const bottomBand = colors.bottomBandColor
+    ? `<rect x="0" y="${bottomY}" width="${SIZE}" height="${BOTTOM_H}" fill="${colors.bottomBandColor}"/>`
+    : ''
+
+  // Fond global : uniquement pour white et black
+  const bgRect = colors.bg.replace(/SIZE/g, String(SIZE))
+
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
-  <!-- Fond blanc -->
-  <rect width="${SIZE}" height="${SIZE}" fill="#ffffff"/>
+  <!-- Fond (${theme}) -->
+  ${bgRect}
 
   <!-- TOP : logo réseau + action -->
   ${topSection}
 
   <!-- Ligne de séparation subtile entre top et middle -->
   <line x1="80" y1="${TOP_H}" x2="${SIZE - 80}" y2="${TOP_H}"
-        stroke="#e4e4e7" stroke-width="1"/>
+        stroke="${colors.separatorColor}" stroke-width="1"/>
 
   <!-- MIDDLE : QR code -->
   <image href="${qrDataUrl}" x="${qrX}" y="${qrY}" width="${QR_SIZE}" height="${QR_SIZE}"/>
   <text x="${SIZE / 2}" y="${legendY}" text-anchor="middle"
         font-family="ui-monospace, 'SF Mono', Menlo, monospace"
-        font-size="22" fill="#71717a">${legendEscaped}</text>
+        font-size="22" fill="${colors.legendColor}">${legendEscaped}</text>
 
-  <!-- BOTTOM : bande sombre DKR TAP + téléphone -->
-  <rect x="0" y="${bottomY}" width="${SIZE}" height="${BOTTOM_H}" fill="#0a0a0a"/>
+  <!-- BOTTOM : bande ${theme === 'transparent' ? '(transparente)' : 'DKR TAP + téléphone'} -->
+  ${bottomBand}
   <image href="${escapeXml(toAbsoluteUrl(brandLogoUrl))}" x="${brandLogoX}" y="${brandLogoY}" width="${brandLogoSize}" height="${brandLogoSize}"/>
   <text x="${textX}" y="${taglineY}"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-        font-size="22" fill="#a1a1aa">${taglineEscaped}</text>
+        font-size="22" fill="${colors.taglineColor}">${taglineEscaped}</text>
   <text x="${textX}" y="${phoneY}"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-        font-size="34" font-weight="700" fill="#ffffff">${phoneEscaped}</text>
+        font-size="34" font-weight="700" fill="${colors.phoneColor}">${phoneEscaped}</text>
 </svg>`
 }
 

@@ -265,6 +265,8 @@ export default function Home() {
     y: number
     size: number
   } | null>(null)
+  // Thème visuel du sticker (blanc/noir/transparent) — configurable dans le modal design
+  const [stickerTheme, setStickerTheme] = useState<'white' | 'black' | 'transparent'>('white')
   const [isDraggingQr, setIsDraggingQr] = useState(false)
   const [isDraggingText, setIsDraggingText] = useState(false)
   const [isResizingQr, setIsResizingQr] = useState(false)
@@ -648,6 +650,8 @@ export default function Home() {
     setQrSticker(s)
     setStickerImageDataUrl(null)
     setImageDimensions(null)
+    // Charger le thème visuel sauvegardé (ou 'white' par défaut)
+    setStickerTheme(s.stickerTheme ?? 'white')
     // Charger la position/taille QR + textOverlay sauvegardés (ou défauts)
     setQrPosition(s.qrPosition ?? { x: 0.85, y: 0.85 })
     setQrSize(s.qrSize ?? 0.25)
@@ -846,6 +850,12 @@ export default function Home() {
     void saveStickerField({ qrSize: newSize })
   }
 
+  // Handler changement du thème visuel du sticker (blanc/noir/transparent)
+  const handleThemeChange = (newTheme: 'white' | 'black' | 'transparent') => {
+    setStickerTheme(newTheme)
+    void saveStickerField({ stickerTheme: newTheme })
+  }
+
   // Handler changement de la taille du texte (slider)
   const handleTextSizeChange = (newSize: number) => {
     if (!textOverlay) return
@@ -889,6 +899,8 @@ export default function Home() {
 
   // Télécharger le sticker : compose l'image uploadée par l'utilisateur + un QR code overlay.
   // Le QR est placé en bas-droite, taille = 25% du min(width, height) de l'image.
+  // Le thème (blanc/noir/transparent) détermine la couleur de fond du canvas AVANT
+  // de dessiner l'image (utile si l'image a de la transparence ou si pas d'image).
   // Si aucune image n'est uploadée, on affiche une erreur demandant d'uploader un design.
   const downloadStickerPng = async (
     sticker: Sticker,
@@ -899,7 +911,8 @@ export default function Home() {
       x: number
       y: number
       size: number
-    } | null
+    } | null,
+    theme: 'white' | 'black' | 'transparent' = 'white'
   ) => {
     try {
       // 1. Charger l'image uploadée
@@ -942,6 +955,19 @@ export default function Home() {
       if (!ctx) {
         throw new Error('Canvas non supporté')
       }
+      // 🎨 Remplir le fond selon le thème AVANT de dessiner l'image
+      // - white : fond blanc #ffffff
+      // - black : fond noir #0a0a0a
+      // - transparent : ne rien remplir (le canvas reste transparent — utile si l'image
+      //   uploadée a de la transparence PNG, ou pour faire un sticker sans fond)
+      if (theme === 'white') {
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+      } else if (theme === 'black') {
+        ctx.fillStyle = '#0a0a0a'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+      }
+      // theme === 'transparent' → pas de fill (canvas transparent)
       // Dessiner l'image de fond (rendu à sa résolution naturelle)
       ctx.drawImage(bgImg, 0, 0)
 
@@ -1501,6 +1527,65 @@ export default function Home() {
           </DialogHeader>
           {qrSticker && (
             <div className="flex flex-col items-center py-2">
+              {/* Sélecteur de thème visuel : Blanc / Noir / Transparent */}
+              <div className="w-full mb-3">
+                <Label className="text-[11px] text-zinc-600 mb-1.5 block">
+                  Thème du sticker (fond)
+                </Label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    onClick={() => handleThemeChange('white')}
+                    className={`p-2 rounded-lg border text-xs font-semibold flex flex-col items-center gap-1 transition-colors ${
+                      stickerTheme === 'white'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : 'border-zinc-200 hover:border-zinc-300 text-zinc-700'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-md border border-zinc-300 bg-white flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-sm bg-black" />
+                    </div>
+                    Blanc
+                  </button>
+                  <button
+                    onClick={() => handleThemeChange('black')}
+                    className={`p-2 rounded-lg border text-xs font-semibold flex flex-col items-center gap-1 transition-colors ${
+                      stickerTheme === 'black'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : 'border-zinc-200 hover:border-zinc-300 text-zinc-700'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-md bg-zinc-900 flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-sm bg-white" />
+                    </div>
+                    Noir
+                  </button>
+                  <button
+                    onClick={() => handleThemeChange('transparent')}
+                    className={`p-2 rounded-lg border text-xs font-semibold flex flex-col items-center gap-1 transition-colors ${
+                      stickerTheme === 'transparent'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : 'border-zinc-200 hover:border-zinc-300 text-zinc-700'
+                    }`}
+                  >
+                    <div
+                      className="w-8 h-8 rounded-md border border-zinc-300"
+                      style={{
+                        backgroundImage:
+                          'linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%), linear-gradient(45deg, #e5e7eb 25%, white 25%, white 75%, #e5e7eb 75%)',
+                        backgroundSize: '8px 8px',
+                        backgroundPosition: '0 0, 4px 4px',
+                      }}
+                    />
+                    Transparent
+                  </button>
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-1.5">
+                  {stickerTheme === 'white' && 'Fond blanc classique (recommandé pour l\'impression standard).'}
+                  {stickerTheme === 'black' && 'Fond noir — sticker dark mode premium avec QR blanc.'}
+                  {stickerTheme === 'transparent' && 'Pas de fond — pour impression sur papier coloré / transparent.'}
+                </p>
+              </div>
+
               {/* QR code caché : sert de source pour la génération du sticker PNG.
                   Ne PAS supprimer, le ref est lu par downloadStickerPng(). */}
               <div
@@ -1514,7 +1599,7 @@ export default function Home() {
                   level="M"
                   marginSize={0}
                   bgColor="transparent"
-                  fgColor="#000000"
+                  fgColor={stickerTheme === 'black' ? '#ffffff' : '#000000'}
                 />
               </div>
 
@@ -1745,7 +1830,7 @@ export default function Home() {
                   className="flex-1"
                   disabled={!stickerImageDataUrl}
                   onClick={() =>
-                    downloadStickerPng(qrSticker, qrPosition, qrSize, textOverlay)
+                    downloadStickerPng(qrSticker, qrPosition, qrSize, textOverlay, stickerTheme)
                   }
                 >
                   <Download size={14} className="mr-1.5" />

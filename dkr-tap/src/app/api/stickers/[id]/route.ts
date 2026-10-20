@@ -16,7 +16,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { label, targetUrl, active, customActionText, customNetwork, qrPosition, qrSize, textOverlay } = body
+    const { label, targetUrl, active, customActionText, customNetwork, qrPosition, qrSize, textOverlay, stickerTheme } = body
 
     // Vérifier existence
     const existing = await db.getStickerById(id)
@@ -42,6 +42,7 @@ export async function PUT(
         y: number
         size: number
       } | null
+      stickerTheme?: 'white' | 'black' | 'transparent' | null
     } = {}
 
     if (label !== undefined) {
@@ -135,6 +136,19 @@ export async function PUT(
           y: textOverlay.y,
           size: textOverlay.size,
         }
+      }
+    }
+
+    // Valider stickerTheme : 'white' | 'black' | 'transparent'
+    if (stickerTheme !== undefined) {
+      const validThemes = ['white', 'black', 'transparent']
+      if (stickerTheme === null) {
+        data.stickerTheme = 'white' // reset au défaut
+      } else if (
+        typeof stickerTheme === 'string' &&
+        validThemes.includes(stickerTheme)
+      ) {
+        data.stickerTheme = stickerTheme as 'white' | 'black' | 'transparent'
       }
     }
 
