@@ -418,10 +418,15 @@ export default async function LandingPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-6 text-sm">
+          <div className="flex items-center gap-4 text-sm flex-wrap justify-center">
+            <a href="/comment-ca-marche" className="text-zinc-500 hover:text-white transition-colors">Comment ça marche</a>
+            <a href="/faq" className="text-zinc-500 hover:text-white transition-colors">FAQ</a>
             <a href="/#modeles" className="text-zinc-500 hover:text-white transition-colors">Modèles</a>
             <a href="/#tarifs" className="text-zinc-500 hover:text-white transition-colors">Tarifs</a>
-            <a href="/#commander" className="text-zinc-500 hover:text-white transition-colors">Commander</a>
+            <a href="/contact" className="text-zinc-500 hover:text-white transition-colors">Contact</a>
+            <a href="/cgv" className="text-zinc-600 hover:text-white transition-colors text-xs">CGV</a>
+            <a href="/mentions-legales" className="text-zinc-600 hover:text-white transition-colors text-xs">Mentions légales</a>
+            <a href="/politique-confidentialite" className="text-zinc-600 hover:text-white transition-colors text-xs">Confidentialité</a>
           </div>
 
           <p className="text-xs text-zinc-600">
