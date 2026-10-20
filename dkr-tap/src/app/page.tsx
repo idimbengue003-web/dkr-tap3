@@ -120,9 +120,9 @@ export default async function LandingPage() {
           </div>
 
           <h1 className="text-4xl sm:text-6xl font-bold tracking-tight mb-6">
-            Un scan. <span className="text-emerald-400">Un abonné.</span>
+            DKR TAP. <span className="text-emerald-400">Grow your business.</span>
             <br />
-            Un avis cinq étoiles.
+            <span className="text-zinc-300 text-2xl sm:text-3xl">Un scan. Un abonné. Un avis cinq étoiles.</span>
           </h1>
 
           <p className="text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto mb-10">
@@ -255,12 +255,12 @@ export default async function LandingPage() {
           {/* 4 photos — récupérées depuis l'admin (KV) ou placeholder */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="aspect-video rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 flex items-center justify-center">
+              <div key={i} className="aspect-square rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 flex items-center justify-center">
                 {modelPhotos[i] ? (
                   <img
                     src={modelPhotos[i] as string}
                     alt={`Modele ${i + 1}`}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                 ) : (
                   <span className="text-zinc-600 text-sm">Photo {i + 1} — importe-la depuis l'admin</span>

@@ -492,7 +492,7 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                               >
                                 <div className="w-12 h-12 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden">
                                   {it.imagePath ? (
-                                    <img src={it.imagePath} alt={it.name} className="w-full h-full object-cover" />
+                                    <img src={it.imagePath} alt={it.name} className="w-full h-full object-contain" />
                                   ) : (
                                     <span className="text-xl">📦</span>
                                   )}

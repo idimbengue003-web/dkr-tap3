@@ -158,8 +158,8 @@ export function CategoryShop({ categories }: { categories: Category[] }) {
                       return (
                       <div key={m.id} className="rounded-xl border border-zinc-800 overflow-hidden hover:border-zinc-600 transition-colors">
                         {m.imagePath && (
-                          <div className="aspect-video bg-zinc-800">
-                            <img src={m.imagePath} alt={m.name} className="w-full h-full object-cover" />
+                          <div className="aspect-square bg-zinc-800">
+                            <img src={m.imagePath} alt={m.name} className="w-full h-full object-contain" />
                           </div>
                         )}
                         <div className="p-3">
