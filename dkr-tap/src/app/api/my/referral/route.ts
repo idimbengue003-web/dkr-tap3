@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-google'
 import { db } from '@/lib/db'
+import { sendReferralBonusEmail } from '@/lib/email'
 
 /**
  * POST /api/my/referral — applique un code de parrainage (email du parrain)
@@ -31,6 +32,12 @@ export async function POST(request: NextRequest) {
         message: 'Parrainage déjà appliqué ou email invalide',
       })
     }
+
+    // 📧 Emails de confirmation de bonus (parrain + filleul)
+    sendReferralBonusEmail(referrerEmail, 'parrain', 1000, session.user.email)
+      .catch((e) => console.error('[email] Erreur envoi referral-parrain:', e))
+    sendReferralBonusEmail(session.user.email, 'filleul', 500, referrerEmail)
+      .catch((e) => console.error('[email] Erreur envoi referral-filleul:', e))
 
     return NextResponse.json({
       ok: true,

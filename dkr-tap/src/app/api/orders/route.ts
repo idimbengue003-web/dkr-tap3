@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, type OrderInput, type OrderItem } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-guard'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { sendOrderCreatedEmail } from '@/lib/email'
 
 // GET /api/orders — admin only (liste toutes les commandes)
 export async function GET(request: NextRequest) {
@@ -70,6 +71,16 @@ export async function POST(request: NextRequest) {
     } catch (e) {
       console.error('[POST /api/orders] Erreur création stickers initiaux pour', order.id, e)
       // Ne pas faire échouer la création de commande pour autant
+    }
+    // 📧 Envoi email de confirmation de création de commande
+    if (input.customerName && input.customerName.includes('@')) {
+      sendOrderCreatedEmail(input.customerName, {
+        id: order.id,
+        totalAfter: order.totalAfter,
+        totalQty: order.totalQty,
+        discountPct: order.discountPct,
+        items: order.items,
+      }).catch((e) => console.error('[email] Erreur envoi order-created:', e))
     }
     return NextResponse.json(order, { status: 201 })
   } catch (error) {

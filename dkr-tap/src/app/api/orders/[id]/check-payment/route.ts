@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { checkPaymentReceived, isWaveConfigured } from '@/lib/wave'
+import { sendOrderPaidEmail, sendWalletRechargedEmail } from '@/lib/email'
 
 /**
  * GET /api/orders/[id]/check-payment — PUBLIC
@@ -75,7 +76,7 @@ export async function GET(
       // Si c'est une recharge → ajouter le montant au solde wallet de l'acheteur
       if (order.type === 'recharge' && order.customerName) {
         try {
-          await db.addWalletTransaction(
+          const newWallet = await db.addWalletTransaction(
             order.customerName,
             'deposit',
             order.totalAfter, // positif = ajoute au solde
@@ -84,6 +85,9 @@ export async function GET(
           console.log(
             `[check-payment] ✓ Recharge ${id} — ${order.totalAfter} FCFA ajoutés au wallet de ${order.customerName}`
           )
+          // 📧 Email de confirmation de recharge wallet
+          sendWalletRechargedEmail(order.customerName, order.totalAfter, newWallet.balance)
+            .catch((e) => console.error('[email] Erreur envoi wallet-recharged:', e))
         } catch (e) {
           console.error('[check-payment] Erreur ajout wallet pour recharge', id, e)
         }
@@ -91,6 +95,16 @@ export async function GET(
         console.log(
           `[check-payment] ✓ Commande ${id} marquée "paid" — montant ${expectedAmount} FCFA reçu via Wave (tx: ${result.transactionId || 'N/A'})`
         )
+        // 📧 Email de confirmation de paiement commande
+        if (order.customerName && order.customerName.includes('@')) {
+          sendOrderPaidEmail(order.customerName, {
+            id: order.id,
+            totalAfter: order.totalAfter,
+            totalQty: order.totalQty,
+            discountPct: order.discountPct,
+            items: order.items,
+          }).catch((e) => console.error('[email] Erreur envoi order-paid:', e))
+        }
       }
       return NextResponse.json({
         status: 'paid',

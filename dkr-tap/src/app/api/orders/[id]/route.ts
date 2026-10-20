@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, type OrderStatus } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-guard'
+import { sendOrderStatusEmail } from '@/lib/email'
 
 // GET /api/orders/[id] — admin only (détail d'une commande)
 export async function GET(
@@ -34,13 +35,18 @@ export async function PATCH(
     const { id } = await params
     const body = await request.json()
     const { status } = body
-    const validStatuses: OrderStatus[] = ['pending', 'paid', 'confirmed', 'cancelled']
+    const validStatuses: OrderStatus[] = ['pending', 'paid', 'printing', 'shipped', 'delivered', 'confirmed', 'cancelled']
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ error: 'Statut invalide' }, { status: 400 })
     }
     const updated = await db.updateOrderStatus(id, status)
     if (!updated) {
       return NextResponse.json({ error: 'Commande introuvable' }, { status: 404 })
+    }
+    // 📧 Email de notification au client si le statut a changé
+    if (updated.customerName && updated.customerName.includes('@') && status !== existing.status) {
+      sendOrderStatusEmail(updated.customerName, id, existing.status, status)
+        .catch((e) => console.error('[email] Erreur envoi status-update:', e))
     }
     return NextResponse.json(updated)
   } catch (error) {
