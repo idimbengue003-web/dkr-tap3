@@ -3,7 +3,7 @@ import Link from 'next/link'
 export const dynamic = 'force-dynamic'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'ScanBridge'
-const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/scanbridge-logo.svg'
+const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.jpg'
 
 export default function NotConfiguredPage({
   searchParams,

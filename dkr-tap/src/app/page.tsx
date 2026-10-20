@@ -6,7 +6,7 @@ import { Navbar } from '@/components/navbar'
 import { db, type Category } from '@/lib/db'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
-const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/scanbridge-logo.svg'
+const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.jpg'
 const BRAND_PHONE = process.env.NEXT_PUBLIC_BRAND_PHONE || '78 927 12 96'
 // Lien de paiement Wave — l'utilisateur le fournira plus tard
 // Format: https://pay.wave.com/... ou un lien personnalisé
@@ -64,7 +64,7 @@ const MODELES = [
   },
   {
     name: 'Personnalisé',
-    icon: '/scanbridge-logo.svg',
+    icon: '/dkrtap-logo.jpg',
     color: '#10b981',
     price: '5 000',
     desc: 'Votre propre design, votre propre URL. Importez votre image et placez le QR où vous voulez.',

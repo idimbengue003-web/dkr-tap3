@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   keywords: ["QR code", "réseaux sociaux", "Instagram", "TikTok", "Google Reviews", "WhatsApp", "stickers", "Dakar", "Sénégal", BRAND_NAME],
   authors: [{ name: BRAND_NAME }],
   icons: {
-    icon: "/scanbridge-logo.svg",
+    icon: "/dkrtap-logo.jpg",
   },
   // Vérification Google Search Console (pour l'indexation SEO)
   verification: {

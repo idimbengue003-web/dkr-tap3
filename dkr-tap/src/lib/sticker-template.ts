@@ -97,7 +97,7 @@ export function getEffectiveNetwork(
  * @param opts.brandLogoUrl URL du logo de marque
  * @param opts.brandPhone Téléphone affiché en bas (ex: "78 927 12 96")
  * @param opts.baseUrl Origin du site (ex: "https://dkr-tap3-exzn.vercel.app")
- *   Utilisé pour convertir les chemins relatifs ("/scanbridge-logo.svg") en URLs
+ *   Utilisé pour convertir les chemins relatifs ("/dkrtap-logo.jpg") en URLs
  *   absolues. INDISPENSABLE quand le SVG est sérialisé en Blob URL pour générer
  *   un PNG — sinon les <image href="/..."> ne se résolvent pas.
  */
