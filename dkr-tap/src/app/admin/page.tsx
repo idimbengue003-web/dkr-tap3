@@ -50,6 +50,7 @@ import {
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { ScannerModal } from '@/components/scanner/scanner-modal'
+import { AIAssistantModal } from '@/components/admin/ai-assistant-modal'
 import { OrdersSection } from '@/components/admin/orders-section'
 import {
   renderStickerSvg,
@@ -247,6 +248,8 @@ export default function Home() {
   const [qrOpen, setQrOpen] = useState(false)
   // Modal scanner QR code (pour édition rapide d'un sticker physique)
   const [scannerOpen, setScannerOpen] = useState(false)
+  // Modal assistant IA (aide création/personnalisation cartes)
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [form, setForm] = useState<StickerForm>(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -1848,6 +1851,22 @@ export default function Home() {
         onOpenChange={setScannerOpen}
         onSlugScanned={handleSlugScanned}
       />
+
+      {/* Bouton flottant Assistant IA */}
+      <button
+        onClick={() => setAiAssistantOpen(true)}
+        className="fixed bottom-6 right-6 z-40 px-4 py-3 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-sm shadow-2xl shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-transform flex items-center gap-2"
+        title="Assistant IA — crée et personnalise tes cartes avec l'IA"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+          <path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>
+        </svg>
+        Assistant IA
+      </button>
+
+      {/* Modal Assistant IA (chat + génération d'images) */}
+      <AIAssistantModal open={aiAssistantOpen} onOpenChange={setAiAssistantOpen} />
 
       {/* Confirmation de suppression */}
       <AlertDialog
