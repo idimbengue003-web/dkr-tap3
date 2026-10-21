@@ -65,6 +65,21 @@ function StockBadge({ model }: { model: Model }) {
   )
 }
 
+// Retourne la couleur d'accent hex d'une catégorie (basé sur son network ou défaut emerald)
+function getCatAccent(cat: Category): string {
+  const colorMap: Record<string, string> = {
+    google: '#4285F4',
+    tiktok: '#FE2C55',
+    instagram: '#d6299f',
+    whatsapp: '#25D366',
+    youtube: '#FF0000',
+    facebook: '#1877F2',
+    snapchat: '#FFFC00',
+  }
+  if (cat.network && colorMap[cat.network]) return colorMap[cat.network]
+  return '#10b981' // emerald par défaut
+}
+
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
 const WAVE_BASE_URL = process.env.NEXT_PUBLIC_WAVE_PAYMENT_URL || '#'
 
@@ -116,28 +131,64 @@ export function CategoryShop({ categories }: { categories: Category[] }) {
 
   return (
     <>
-      {/* Grille des catégories */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Grille des catégories — design pro inspiré e-commerce */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8">
         {categories.map((cat) => (
           <div
             key={cat.id}
-            className="group rounded-2xl border border-zinc-800 hover:border-emerald-500 transition-all overflow-hidden bg-zinc-900/50 cursor-pointer"
             onClick={() => openCategory(cat)}
+            className="group relative flex flex-col items-center text-center bg-white rounded-2xl border border-zinc-200 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/10 transition-all cursor-pointer overflow-hidden hover:-translate-y-1 duration-200"
           >
-            <div className="h-24 flex items-center justify-center" style={{ background: `radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%)` }}>
+            {/* Header avec logo centré sur fond dégradé subtil */}
+            <div
+              className="w-full h-28 flex items-center justify-center relative overflow-hidden"
+              style={{
+                background: `radial-gradient(circle at center, ${getCatAccent(cat)}15 0%, transparent 70%)`,
+              }}
+            >
               {cat.imagePath ? (
-                <img src={cat.imagePath} alt={cat.name} width={48} height={48} />
+                <img
+                  src={cat.imagePath}
+                  alt={cat.name}
+                  width={64}
+                  height={64}
+                  className="object-contain transition-transform group-hover:scale-110 duration-300"
+                />
               ) : (
-                <span className="text-2xl">📦</span>
+                <span className="text-3xl">📦</span>
               )}
             </div>
-            <div className="p-4">
-              <h3 className="font-bold text-base mb-1">{cat.name}</h3>
-              <div className="flex items-center justify-between">
-                <span className="text-emerald-400 font-bold">{cat.price.toLocaleString('fr-FR')} FCFA</span>
-                <span className="text-xs text-emerald-400 group-hover:underline">Voir les modèles →</span>
-              </div>
-              {cat.description && <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{cat.description}</p>}
+
+            {/* Body centré */}
+            <div className="px-4 py-4 flex-1 flex flex-col items-center w-full">
+              <h3 className="font-bold text-zinc-900 text-base mb-1">{cat.name}</h3>
+
+              {/* Prix mis en évidence */}
+              <p className="text-emerald-600 font-bold text-lg mb-2">
+                {cat.price.toLocaleString('fr-FR')}
+                <span className="text-xs text-zinc-500 font-normal ml-1">FCFA</span>
+              </p>
+
+              {/* Description courte */}
+              {cat.description && (
+                <p className="text-xs text-zinc-500 leading-relaxed mb-3 line-clamp-2 flex-1">
+                  {cat.description}
+                </p>
+              )}
+
+              {/* Bouton "Voir les modèles" style pro */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openCategory(cat)
+                }}
+                className="mt-auto w-full py-2 rounded-lg bg-emerald-500 text-black text-xs font-semibold hover:bg-emerald-400 transition-colors flex items-center justify-center gap-1.5 group/btn"
+              >
+                Voir les modèles
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover/btn:translate-x-0.5">
+                  <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>
+                </svg>
+              </button>
             </div>
           </div>
         ))}

@@ -355,30 +355,45 @@ export default async function LandingPage() {
           {categories.length > 0 ? (
             <CategoryShop categories={categories} />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8">
               {MODELES.map((model) => (
-                <div key={model.name} className="group rounded-2xl border border-zinc-800 hover:border-zinc-600 transition-all overflow-hidden bg-zinc-900/50">
-                  <div className="h-24 flex items-center justify-center" style={{ background: `radial-gradient(circle, ${model.color}25 0%, transparent 70%)` }}>
-                    <img src={model.icon} alt={`Logo ${model.name}`} width={48} height={48} className="opacity-90" />
+                <div
+                  key={model.name}
+                  className="group relative flex flex-col items-center text-center bg-white rounded-2xl border border-zinc-200 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/10 transition-all overflow-hidden hover:-translate-y-1 duration-200"
+                >
+                  {/* Header avec logo centré */}
+                  <div
+                    className="w-full h-28 flex items-center justify-center relative overflow-hidden"
+                    style={{ background: `radial-gradient(circle at center, ${model.color}20 0%, transparent 70%)` }}
+                  >
+                    <img
+                      src={model.icon}
+                      alt={`Logo ${model.name}`}
+                      width={64}
+                      height={64}
+                      className="object-contain transition-transform group-hover:scale-110 duration-300"
+                    />
                   </div>
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-bold text-base">{model.name}</h3>
-                      <span className="text-lg font-bold" style={{ color: model.color }}>
-                        {model.price}<span className="text-xs text-zinc-500 font-normal"> FCFA</span>
-                      </span>
-                    </div>
-                    <p className="text-xs text-zinc-400 mb-3 leading-relaxed">{model.desc}</p>
-                    <ul className="space-y-1">
-                      {model.features.map((f, i) => (
-                        <li key={i} className="flex items-start gap-1.5 text-[11px] text-zinc-500">
-                          <svg width="12" height="12" viewBox="0 0 24 24" stroke={model.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
+
+                  {/* Body centré */}
+                  <div className="px-4 py-4 flex-1 flex flex-col items-center w-full">
+                    <h3 className="font-bold text-zinc-900 text-base mb-1">{model.name}</h3>
+                    <p className="font-bold text-lg mb-2" style={{ color: model.color }}>
+                      {model.price}
+                      <span className="text-xs text-zinc-500 font-normal ml-1">FCFA</span>
+                    </p>
+                    <p className="text-xs text-zinc-500 leading-relaxed mb-3 line-clamp-2 flex-1">
+                      {model.desc}
+                    </p>
+                    <a
+                      href="#commander"
+                      className="mt-auto w-full py-2 rounded-lg bg-emerald-500 text-black text-xs font-semibold hover:bg-emerald-400 transition-colors flex items-center justify-center gap-1.5 group/btn"
+                    >
+                      Commander
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover/btn:translate-x-0.5">
+                        <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>
+                      </svg>
+                    </a>
                   </div>
                 </div>
               ))}
