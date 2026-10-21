@@ -4,14 +4,15 @@ import { requireAuth } from '@/lib/auth-guard'
 /**
  * POST /api/ai/generate-design — Génère une image de design pour sticker
  *
- * Body: { prompt: string, theme?: 'white'|'black'|'transparent' }
+ * Body: { prompt: string }
  *
  * Utilise l'IA de génération d'images pour créer un design de sticker
  * basé sur la description de l'admin (ex: "logo salon de coiffure élégant,
  * femme avec tresse, fond pastel").
  *
- * L'image peut ensuite être utilisée comme image de catégorie/modèle
- * ou comme base pour un sticker personnalisé.
+ * Réponse de l'API : tableau d'images en base64 (pas d'URL distante).
+ * On convertit en data URL côté serveur pour faciliter l'affichage +
+ * le téléchargement côté client.
  */
 export async function POST(request: NextRequest) {
   const guard = await requireAuth(request)
@@ -37,28 +38,31 @@ export async function POST(request: NextRequest) {
     const response = await zai.images.generations.create({
       prompt: fullPrompt,
       size: '1024x1024', // carré pour sticker
-    } as any)
+    })
 
-    // Extraction de l'URL de l'image depuis la réponse
-    const imageUrl =
-      response?.data?.[0]?.url ||
-      response?.data?.[0]?.image_url ||
-      response?.images?.[0]?.url ||
-      response?.url ||
-      null
-
-    if (!imageUrl) {
-      console.error('[generate-design] Réponse inattendue:', JSON.stringify(response).slice(0, 500))
+    // ⚠️ L'API renvoie du base64 dans data[].base64 (PAS d'URL distante)
+    // On convertit en data URL pour faciliter l'affichage + le téléchargement
+    const base64 = response?.data?.[0]?.base64
+    if (!base64) {
+      console.error('[generate-design] Réponse inattendue (pas de base64):', JSON.stringify(response).slice(0, 800))
       return NextResponse.json(
-        { error: 'Aucune image générée dans la réponse de l\'IA' },
+        {
+          error: 'L\'IA n\'a pas pu générer d\'image. Réessaie avec une description différente.',
+          responseStructure: JSON.stringify(response).slice(0, 500),
+        },
         { status: 500 }
       )
     }
 
+    // Construire le data URL complet (format PNG)
+    const dataUrl = `data:image/png;base64,${base64}`
+
     return NextResponse.json({
-      imageUrl,
+      imageUrl: dataUrl,
       prompt: userPrompt,
       fullPrompt,
+      // Infos pour le client
+      isDataUrl: true,
     })
   } catch (error: any) {
     console.error('[POST /api/ai/generate-design]', error)

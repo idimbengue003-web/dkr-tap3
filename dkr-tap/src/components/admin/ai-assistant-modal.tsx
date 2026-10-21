@@ -145,11 +145,33 @@ Clique sur un raccourci ci-dessus ou pose-moi une question libre 👇`,
     }
   }
 
-  const copyImageUrl = () => {
+  const copyImageUrl = async () => {
     if (generatedImage) {
-      navigator.clipboard.writeText(generatedImage.url)
-      setImageCopied(true)
-      setTimeout(() => setImageCopied(false), 1500)
+      // Si data URL, on copie le base64 dans un fichier temporaire via clipboard
+      // Sinon, c'est une URL classique
+      try {
+        if (generatedImage.url.startsWith('data:')) {
+          // Convertir le data URL en blob pour le copier dans le presse-papier
+          const res = await fetch(generatedImage.url)
+          const blob = await res.blob()
+          if (navigator.clipboard && (window as any).ClipboardItem) {
+            await (navigator as any).clipboard.write([
+              new (window as any).ClipboardItem({ 'image/png': blob }),
+            ])
+            setImageCopied(true)
+            setTimeout(() => setImageCopied(false), 1500)
+          } else {
+            alert('Navigateur non compatible avec la copie d\'image. Utilise le bouton Télécharger.')
+          }
+        } else {
+          navigator.clipboard.writeText(generatedImage.url)
+          setImageCopied(true)
+          setTimeout(() => setImageCopied(false), 1500)
+        }
+      } catch (e) {
+        console.error('Erreur copie:', e)
+        alert('Erreur lors de la copie')
+      }
     }
   }
 
@@ -337,20 +359,30 @@ Clique sur un raccourci ci-dessus ou pose-moi une question libre 👇`,
                       <img src={generatedImage.url} alt={generatedImage.prompt} className="w-full h-auto" />
                     </div>
                     <div className="flex gap-2">
-                      <a
-                        href={generatedImage.url}
-                        download={`dkr-tap-design-${Date.now()}.jpg`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold hover:bg-zinc-700 text-center"
+                      <button
+                        onClick={async () => {
+                          if (!generatedImage) return
+                          try {
+                            // Téléchargement direct du data URL
+                            const link = document.createElement('a')
+                            link.href = generatedImage.url
+                            link.download = `dkr-tap-design-${Date.now()}.png`
+                            document.body.appendChild(link)
+                            link.click()
+                            document.body.removeChild(link)
+                          } catch (e) {
+                            console.error('Erreur téléchargement:', e)
+                          }
+                        }}
+                        className="flex-1 py-2 rounded-lg bg-zinc-800 text-white text-xs font-semibold hover:bg-zinc-700 text-center flex items-center justify-center gap-1"
                       >
                         Télécharger
-                      </a>
+                      </button>
                       <button
                         onClick={copyImageUrl}
                         className="flex-1 py-2 rounded-lg border border-zinc-200 text-zinc-700 text-xs font-semibold hover:border-emerald-400 flex items-center justify-center gap-1"
                       >
-                        {imageCopied ? <><Check size={12} /> Copié !</> : <><Copy size={12} /> Copier URL</>}
+                        {imageCopied ? <><Check size={12} /> Copié !</> : <><Copy size={12} /> Copier image</>}
                       </button>
                     </div>
                     <p className="text-[10px] text-zinc-500">
