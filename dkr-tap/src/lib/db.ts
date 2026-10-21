@@ -615,6 +615,8 @@ export const db = {
     description?: string | null
     price?: number
     imagePath?: string | null
+    stockStatus?: 'in_stock' | 'on_order' | null
+    stockQuantity?: number | null
   }): Promise<StickerModel> {
     const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
     const now = new Date().toISOString()
@@ -623,6 +625,8 @@ export const db = {
       description: input.description ?? null,
       price: input.price ?? 3000,
       imagePath: input.imagePath ?? null,
+      stockStatus: input.stockStatus ?? 'in_stock',
+      stockQuantity: input.stockQuantity ?? null,
       createdAt: now, updatedAt: now,
     }
     await store.set(`model:${id}`, model)
@@ -986,6 +990,15 @@ export type StickerModel = {
   description: string | null
   price: number
   imagePath: string | null
+  /** Statut de stock :
+   *  - 'in_stock' : déjà fabriqué, prêt à être livré (livraison immédiate)
+   *  - 'on_order' : sur commande, fabriqué après paiement (délai de production)
+   *  Default : 'in_stock' (rétro-compatibilité)
+   */
+  stockStatus?: 'in_stock' | 'on_order' | null
+  /** Quantité en stock (uniquement si stockStatus = 'in_stock').
+   *  null = illimité (par défaut). Si 0 = rupture de stock. */
+  stockQuantity?: number | null
   createdAt: string
   updatedAt: string
 }

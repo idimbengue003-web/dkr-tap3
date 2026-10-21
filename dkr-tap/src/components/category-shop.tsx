@@ -22,6 +22,47 @@ type Model = {
   description: string | null
   price: number
   imagePath: string | null
+  stockStatus?: 'in_stock' | 'on_order' | null
+  stockQuantity?: number | null
+}
+
+// Badge de stock affiché sur chaque carte d'annonce
+function StockBadge({ model }: { model: Model }) {
+  const status = model.stockStatus ?? 'in_stock'
+  if (status === 'on_order') {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-semibold">
+        🛠️ Sur commande
+      </span>
+    )
+  }
+  // in_stock
+  if (model.stockQuantity == null) {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold">
+        📦 En stock
+      </span>
+    )
+  }
+  if (model.stockQuantity === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/30 text-[10px] font-semibold">
+        ❌ Rupture
+      </span>
+    )
+  }
+  if (model.stockQuantity <= 5) {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-orange-500/15 text-orange-400 border border-orange-500/30 text-[10px] font-semibold">
+        ⚠️ Plus que {model.stockQuantity}
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold">
+      📦 En stock ({model.stockQuantity})
+    </span>
+  )
 }
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
@@ -163,7 +204,10 @@ export function CategoryShop({ categories }: { categories: Category[] }) {
                           </div>
                         )}
                         <div className="p-3">
-                          <h4 className="font-semibold text-sm mb-1">{m.name}</h4>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <h4 className="font-semibold text-sm truncate">{m.name}</h4>
+                            <StockBadge model={m} />
+                          </div>
                           {m.description && <p className="text-xs text-zinc-400 mb-2">{m.description}</p>}
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-emerald-400 font-bold">{m.price.toLocaleString('fr-FR')} FCFA</span>

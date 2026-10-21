@@ -2523,6 +2523,8 @@ function AnnoncesSection() {
     description: '',
     price: '3000',
     imagePath: '',
+    stockStatus: 'in_stock' as 'in_stock' | 'on_order',
+    stockQuantity: '' as string, // vide = null (illimité)
   })
 
   type StickerModel = {
@@ -2532,8 +2534,11 @@ function AnnoncesSection() {
     description: string | null
     price: number
     imagePath: string | null
+    stockStatus?: 'in_stock' | 'on_order' | null
+    stockQuantity?: number | null
     createdAt: string
     updatedAt: string
+    categoryName?: string
   }
 
   type Category = {
@@ -2543,6 +2548,38 @@ function AnnoncesSection() {
     description: string | null
     price: number
     imagePath: string | null
+  }
+
+  // Helper local pour afficher le badge de stock
+  function renderStockBadge(a: { stockStatus?: 'in_stock' | 'on_order' | null; stockQuantity?: number | null }) {
+    const status = a.stockStatus ?? 'in_stock'
+    if (status === 'on_order') {
+      return (
+        <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[10px]">
+          🛠️ Sur commande
+        </Badge>
+      )
+    }
+    // in_stock
+    if (a.stockQuantity == null) {
+      return (
+        <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50 text-[10px]">
+          📦 En stock (illimité)
+        </Badge>
+      )
+    }
+    if (a.stockQuantity === 0) {
+      return (
+        <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50 text-[10px]">
+          ❌ Rupture de stock
+        </Badge>
+      )
+    }
+    return (
+      <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50 text-[10px]">
+        📦 En stock ({a.stockQuantity})
+      </Badge>
+    )
   }
 
   // Charger les catégories
@@ -2633,11 +2670,15 @@ function AnnoncesSection() {
       return
     }
     try {
+      // Stock quantity : si vide → null (illimité), sinon parse en int
+      const stockQty = form.stockQuantity.trim() === '' ? null : parseInt(form.stockQuantity)
       const payload = {
         name: form.name.trim(),
         description: form.description.trim() || null,
         price: parseInt(form.price) || undefined,
         imagePath: form.imagePath || null,
+        stockStatus: form.stockStatus,
+        stockQuantity: stockQty,
       }
       if (editingId) {
         await fetch(`/api/models/${editingId}`, {
@@ -2654,7 +2695,7 @@ function AnnoncesSection() {
       }
       setShowForm(false)
       setEditingId(null)
-      setForm({ categoryId: categories[0]?.id || '', name: '', description: '', price: '3000', imagePath: '' })
+      setForm({ categoryId: categories[0]?.id || '', name: '', description: '', price: '3000', imagePath: '', stockStatus: 'in_stock', stockQuantity: '' })
       await fetchAnnonces()
     } catch {
       toast({ variant: 'destructive', title: 'Erreur' })
@@ -2669,6 +2710,8 @@ function AnnoncesSection() {
       description: a.description ?? '',
       price: String(a.price),
       imagePath: a.imagePath ?? '',
+      stockStatus: (a.stockStatus ?? 'in_stock') as 'in_stock' | 'on_order',
+      stockQuantity: a.stockQuantity != null ? String(a.stockQuantity) : '',
     })
     setShowForm(true)
   }
@@ -2703,7 +2746,7 @@ function AnnoncesSection() {
           size="sm"
           onClick={() => {
             setEditingId(null)
-            setForm({ categoryId: categories[0]?.id || '', name: '', description: '', price: '3000', imagePath: '' })
+            setForm({ categoryId: categories[0]?.id || '', name: '', description: '', price: '3000', imagePath: '', stockStatus: 'in_stock', stockQuantity: '' })
             setShowForm(!showForm)
           }}
         >
@@ -2746,6 +2789,43 @@ function AnnoncesSection() {
               <Label htmlFor="annonce-desc">Description</Label>
               <Textarea id="annonce-desc" placeholder="Description de l'annonce..." rows={2} value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </div>
+
+            {/* Statut de stock */}
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-lg border border-zinc-200 bg-zinc-50">
+              <div>
+                <Label htmlFor="annonce-stock-status" className="text-xs">Statut de stock</Label>
+                <select
+                  id="annonce-stock-status"
+                  value={form.stockStatus}
+                  onChange={(e) => setForm({ ...form, stockStatus: e.target.value as 'in_stock' | 'on_order' })}
+                  className="w-full px-2 py-1.5 rounded-md border border-zinc-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                >
+                  <option value="in_stock">📦 En stock (déjà fabriqué)</option>
+                  <option value="on_order">🛠️ Sur commande (à fabriquer)</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="annonce-stock-qty" className="text-xs">
+                  Quantité en stock
+                  <span className="text-zinc-400 font-normal ml-1">(vide = illimité)</span>
+                </Label>
+                <Input
+                  id="annonce-stock-qty"
+                  type="number"
+                  min="0"
+                  placeholder="ex: 10 (vide = illimité)"
+                  value={form.stockQuantity}
+                  disabled={form.stockStatus === 'on_order'}
+                  onChange={(e) => setForm({ ...form, stockQuantity: e.target.value })}
+                  className={form.stockStatus === 'on_order' ? 'bg-zinc-100 text-zinc-400' : ''}
+                />
+              </div>
+              <p className="col-span-2 text-[10px] text-zinc-500 leading-relaxed">
+                {form.stockStatus === 'in_stock'
+                  ? '📦 "En stock" : l\'annonce est déjà fabriquée, livraison immédiate après paiement. Indique la quantité disponible (vide = illimité).'
+                  : '🛠️ "Sur commande" : l\'annonce est fabriquée APRÈS le paiement du client. Délai de production à prévoir. La quantité en stock n\'est pas pertinente — le champ est désactivé.'}
+              </p>
             </div>
 
             {/* Upload image */}
@@ -2812,9 +2892,10 @@ function AnnoncesSection() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium truncate">{a.name}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-xs flex-wrap">
                     <Badge variant="outline" className="text-zinc-500">{getCatName(a.categoryId)}</Badge>
                     <span className="text-emerald-600 font-bold">{a.price.toLocaleString('fr-FR')} FCFA</span>
+                    {renderStockBadge(a)}
                   </div>
                   {a.description && <p className="text-[10px] text-zinc-400 truncate">{a.description}</p>}
                 </div>
