@@ -2,17 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-guard'
 
 /**
- * POST /api/ai/generate-design — Génère une image de design pour sticker
+ * POST /api/ai/generate-design — Génère une image de design pour sticker QR
  *
- * Body: { prompt: string }
+ * Body: { prompt: string, businessType?: string, network?: string }
  *
- * Utilise l'IA de génération d'images pour créer un design de sticker
- * basé sur la description de l'admin (ex: "logo salon de coiffure élégant,
- * femme avec tresse, fond pastel").
+ * L'IA génère des designs PROFESSIONNELS spécifiques aux stickers DKR TAP :
+ * - Cartes carrées 10×10 cm avec emplacement QR réservé
+ * - Style adapté au type de business (salon, resto, boutique...)
+ * - Couleurs cohérentes avec la marque réseau si fourni
+ * - Qualité impression pro (300 DPI équivalent)
  *
- * Réponse de l'API : tableau d'images en base64 (pas d'URL distante).
- * On convertit en data URL côté serveur pour faciliter l'affichage +
- * le téléchargement côté client.
+ * Prompts rejetés si non pertinents (alcool, tabac, contenu explicite, etc.)
  */
 export async function POST(request: NextRequest) {
   const guard = await requireAuth(request)
@@ -28,8 +28,66 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Description trop longue (max 500 caractères)' }, { status: 400 })
     }
 
-    // Construction du prompt final — on ajoute du contexte pour l'IA
-    const fullPrompt = `Design professionnel pour un sticker QR code de carte de visite (carré, 10x10 cm) : ${userPrompt}. Style moderne, propre, minimaliste, couleurs vives, adapté pour impression haute qualité. Pas de texte superflu. Format carré.`
+    // Validation : rejeter les prompts non pertinents pour le business DKR TAP
+    const forbiddenKeywords = [
+      'alcool', 'alcohol', 'whisky', 'vodka', 'bière', 'beer', 'wine', 'vin',
+      'cigarette', 'tabac', 'tobacco', 'cigar',
+      'weapon', 'gun', 'arme', 'pistolet',
+      'nude', 'naked', 'nsfw', 'sex', 'adult',
+      'violence', 'blood', 'gore',
+    ]
+    const lowerPrompt = userPrompt.toLowerCase()
+    const foundForbidden = forbiddenKeywords.find((k) => lowerPrompt.includes(k))
+    if (foundForbidden) {
+      return NextResponse.json(
+        {
+          error: `Type de design non supporté (${foundForbidden}). DKR TAP génère uniquement des designs professionnels pour business légitimes : salons, restaurants, boutiques, services, etc.`,
+        },
+        { status: 400 }
+      )
+    }
+
+    // Paramètres optionnels pour mieux orienter l'IA
+    const businessType: string = String(body.businessType || '').trim()
+    const network: string = String(body.network || '').trim()
+
+    // Construction du prompt final — très spécifique aux stickers DKR TAP
+    // pour forcer l'IA à générer des designs professionnels et adaptés
+    const businessContext = businessType
+      ? `Contexte business : ${businessType}.`
+      : 'Contexte business : commerce dakartois.'
+
+    const networkContext = network
+      ? `Réseau cible : ${network} (la carte sera scannée pour rediriger vers ce réseau).`
+      : 'Réseau cible : générique (compatible tous réseaux).'
+
+    const fullPrompt = `PROFESSIONAL QR CODE STICKER CARD DESIGN — square format 10×10 cm
+
+${businessContext}
+${networkContext}
+User request: ${userPrompt}
+
+DESIGN REQUIREMENTS (strict, professional quality):
+1. SQUARE FORMAT — composition centered, balanced for 10×10cm print
+2. CLEAN SPACE in the bottom-right quadrant (reserved for QR code 4×4cm)
+   → DO NOT draw a QR code, just leave clear space for it
+3. MINIMALIST STYLE — modern, elegant, suitable for premium business card
+4. HIGH CONTRAST areas so the QR (added later) stays scannable
+5. CORPORATE-QUALITY visual identity:
+   - Cohesive color palette (2-3 colors max)
+   - Clean typography if text is included (sans-serif, modern)
+   - Recognizable logo/icon centered or top
+   - Suitable for Senegalese business context (Dakar, modern Africa)
+6. NO TEXT like "scan me" or "scan here" — the QR will be added separately
+7. NO actual QR code in the image (just visual design, QR added later)
+8. QUALITY: professional print-ready, crisp edges, modern aesthetic
+9. SUITABLE FOR: business cards, retail displays, restaurant tables, salon mirrors
+
+Reference visual style: clean modern brand stickers like Notion, Linear,
+Stripe branded cards. African-inspired but minimalist. High-end feel.
+
+Generate a single square image, 1024×1024, ready to be used as background
+for a QR code sticker.`
 
     // Appel à l'API de génération d'images via z-ai-web-dev-sdk
     const { default: ZAI } = await import('z-ai-web-dev-sdk')
@@ -40,14 +98,13 @@ export async function POST(request: NextRequest) {
       size: '1024x1024', // carré pour sticker
     })
 
-    // ⚠️ L'API renvoie du base64 dans data[].base64 (PAS d'URL distante)
-    // On convertit en data URL pour faciliter l'affichage + le téléchargement
+    // ⚠️ L'API renvoie du base64 dans data[].base64
     const base64 = response?.data?.[0]?.base64
     if (!base64) {
       console.error('[generate-design] Réponse inattendue (pas de base64):', JSON.stringify(response).slice(0, 800))
       return NextResponse.json(
         {
-          error: 'L\'IA n\'a pas pu générer d\'image. Réessaie avec une description différente.',
+          error: 'L\'IA n\'a pas pu générer d\'image. Réessaie avec une description différente ou plus précise.',
           responseStructure: JSON.stringify(response).slice(0, 500),
         },
         { status: 500 }

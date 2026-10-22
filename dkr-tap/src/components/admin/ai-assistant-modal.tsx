@@ -313,21 +313,23 @@ Clique sur un raccourci ci-dessus ou pose-moi une question libre 👇`,
                     value={imagePrompt}
                     onChange={(e) => setImagePrompt(e.target.value)}
                     rows={4}
-                    placeholder="Ex: Logo stylisé pour salon de coiffure, femme africaine avec tresses, couleurs pastel (rose, lavande), minimaliste, élégant"
+                    placeholder="Ex: Élégant sticker pour salon de coiffure dakartois — dégradé pastel rose/lavande, ciseaux stylisés dorés minimaliste, espace prévu pour QR en bas-droite"
                     className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-emerald-500 resize-none"
                   />
                   <p className="text-[10px] text-zinc-500 mt-1">
-                    Astuce : décris le style (minimaliste, moderne, coloré...), les éléments principaux, et les couleurs souhaitées.
+                    Astuce : décris le <strong>type de business</strong> (salon, resto, boutique), le <strong>style visuel</strong> (minimaliste, moderne, festif), et les <strong>couleurs</strong> souhaitées. L'IA génère un design carré 10×10 cm pro, avec espace réservé pour le QR.
                   </p>
                 </div>
 
                 {/* Quick templates */}
                 <div className="flex flex-wrap gap-1.5">
                   {[
-                    "Logo salon de coiffure élégant, femme avec tresse, couleurs pastel",
-                    "Design sticker pour restaurant, plat sénégalais, couleurs chaudes",
-                    "Logo boutique de mode, sac à main stylisé, rose et noir",
-                    "Design minimaliste QR code, abstract, vert émeraude",
+                    "Élégant salon de coiffure moderne — dégradé pastel rose/lavande, ciseaux stylisés dorés, minimaliste",
+                    "Sticker restaurant gastronomique sénégalais — couleurs terre cuite + or, motif subtil de plat thiéboudienne, premium",
+                    "Logo boutique mode luxe — noir + or, monogramme élégant, style couture parisienne adaptée Dakar",
+                    "Sticker tech moderne — dégradé émeraude/bleu nuit, abstract géométrique, style Linear/Notion",
+                    "Design cérémonie/event sénégalais — motif wax subtil, couleurs royal (rouge/or/violet), festif mais classe",
+                    "Sticker café/boulangerie chaleureux — tons bois/crème, icône grain de café stylisé, cozy",
                   ].map((tpl, i) => (
                     <button
                       key={i}
