@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-guard'
 import { db } from '@/lib/db'
-import { callZaiChat, ZaiUnavailableError } from '@/lib/zai-api'
+import { callGeminiChat } from '@/lib/gemini-api'
 
 /**
  * POST /api/ai/chat — Assistant IA pour aider à créer/personnaliser cartes et QR
@@ -95,34 +95,8 @@ EXEMPLES :
 - User : "Quelle URL pour Google Reviews ?"
   → Tu expliques comment trouver l'URL de la fiche Google Maps du commerce`
 
-    // Appel à l'API ZAI directement (bypass du SDK qui a besoin d'un fichier
-    // .z-ai-config absent sur Vercel serverless)
-    // Le system prompt est en role: 'assistant' (convention z-ai-web-dev-sdk)
-    const sdkMessages: Array<{ role: 'assistant' | 'user'; content: string }> = [
-      { role: 'assistant', content: systemPrompt },
-      ...history.map((m) => ({
-        role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
-        content: m.content,
-      })),
-      { role: 'user', content: userMessage },
-    ]
-
-    const response = await callZaiChat(sdkMessages, { thinking: { type: 'disabled' } })
-
-    // Extraction du texte de la réponse (structure OpenAI-like)
-    const assistantMessage =
-      response?.choices?.[0]?.message?.content ||
-      response?.message?.content ||
-      response?.content ||
-      (typeof response === 'string' ? response : null)
-
-    if (!assistantMessage) {
-      console.error('[ai/chat] Réponse inattendue de l\'API:', JSON.stringify(response).slice(0, 800))
-      return NextResponse.json(
-        { error: 'L\'IA n\'a pas pu générer de réponse. Réessaie.' },
-        { status: 500 }
-      )
-    }
+    // Appel à l'API Google Gemini (publique, marche sur Vercel)
+    const assistantMessage = await callGeminiChat(systemPrompt, history, userMessage)
 
     return NextResponse.json({
       message: assistantMessage,
@@ -134,17 +108,6 @@ EXEMPLES :
     })
   } catch (error: any) {
     console.error('[POST /api/ai/chat]', error)
-    // Cas spécial : IA indisponible en production (Vercel ne peut pas atteindre l'API interne)
-    if (error instanceof ZaiUnavailableError) {
-      return NextResponse.json(
-        {
-          error: 'IA indisponible en production',
-          message: error.message,
-          isProdUnavailable: true,
-        },
-        { status: 503 }
-      )
-    }
     return NextResponse.json(
       {
         error: 'Erreur lors de la communication avec l\'IA',

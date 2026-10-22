@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-guard'
-import { callZaiImage, ZaiUnavailableError } from '@/lib/zai-api'
+import { callGeminiImage } from '@/lib/gemini-api'
 
 /**
  * POST /api/ai/generate-design — Génère une image de design pour sticker QR
@@ -90,19 +90,12 @@ Stripe branded cards. African-inspired but minimalist. High-end feel.
 Generate a single square image, 1024×1024, ready to be used as background
 for a QR code sticker.`
 
-    // Appel à l'API ZAI directement (bypass du SDK qui a besoin d'un fichier
-    // .z-ai-config absent sur Vercel serverless)
-    const response = await callZaiImage(fullPrompt, '1024x1024')
+    // Appel à l'API Google Gemini (génération d'image multi-modal)
+    const base64 = await callGeminiImage(fullPrompt)
 
-    // ⚠️ L'API peut retourner soit du base64, soit des URLs (déjà téléchargées par callZaiImage)
-    const base64 = response?.data?.[0]?.base64
     if (!base64) {
-      console.error('[generate-design] Réponse inattendue (pas de base64):', JSON.stringify(response).slice(0, 800))
       return NextResponse.json(
-        {
-          error: 'L\'IA n\'a pas pu générer d\'image. Réessaie avec une description différente ou plus précise.',
-          responseStructure: JSON.stringify(response).slice(0, 500),
-        },
+        { error: 'L\'IA n\'a pas pu générer d\'image. Réessaie avec une description différente.' },
         { status: 500 }
       )
     }
@@ -114,22 +107,10 @@ for a QR code sticker.`
       imageUrl: dataUrl,
       prompt: userPrompt,
       fullPrompt,
-      // Infos pour le client
       isDataUrl: true,
     })
   } catch (error: any) {
     console.error('[POST /api/ai/generate-design]', error)
-    // Cas spécial : IA indisponible en production (Vercel ne peut pas atteindre l'API interne)
-    if (error instanceof ZaiUnavailableError) {
-      return NextResponse.json(
-        {
-          error: 'IA indisponible en production',
-          message: error.message,
-          isProdUnavailable: true,
-        },
-        { status: 503 }
-      )
-    }
     return NextResponse.json(
       {
         error: 'Erreur lors de la génération de l\'image',
