@@ -102,7 +102,11 @@ Clique sur un raccourci ci-dessus ou pose-moi une question libre 👇`,
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || 'Échec de la requête')
+        // IA indisponible en production (Vercel ne peut pas atteindre l'API ZAI interne)
+        if (err?.isProdUnavailable || res.status === 503) {
+          throw new Error('PROD_UNAVAILABLE')
+        }
+        throw new Error(err?.error || 'Échec de la requête')
       }
       const data = await res.json()
       setMessages([
@@ -110,13 +114,34 @@ Clique sur un raccourci ci-dessus ou pose-moi une question libre 👇`,
         { role: 'assistant', content: data.message },
       ])
     } catch (e) {
-      setMessages([
-        ...newMessages,
-        {
-          role: 'assistant',
-          content: `❌ Désolé, erreur : ${(e as Error).message}. Réessaie.`,
-        },
-      ])
+      const errMsg = (e as Error).message
+      if (errMsg === 'PROD_UNAVAILABLE') {
+        setMessages([
+          ...newMessages,
+          {
+            role: 'assistant',
+            content: `⚠️ IA indisponible sur ce serveur (Vercel production).
+
+**Pourquoi ça ne marche pas ?**
+Le service ZAI interne n'est accessible que depuis l'environnement de développement local. Sur Vercel, le serveur ne peut pas atteindre cette API privée.
+
+**Comment activer l'IA en production ?**
+Tu as 2 options :
+1. **Tester l'IA en local** : lance le projet en local (npm run dev) — l'IA marchera car ton ordinateur a accès à l'API ZAI
+2. **Utiliser un LLM public** : connecter une API publique comme Google Gemini (gratuit) ou OpenAI (payant)
+
+Pour l'instant, l'IA ne marche que sur ta machine locale.`,
+          },
+        ])
+      } else {
+        setMessages([
+          ...newMessages,
+          {
+            role: 'assistant',
+            content: `❌ Désolé, erreur : ${errMsg}. Réessaie.`,
+          },
+        ])
+      }
     } finally {
       setLoading(false)
     }
@@ -134,10 +159,15 @@ Clique sur un raccourci ci-dessus ou pose-moi une question libre 👇`,
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || 'Échec')
+        if (err?.isProdUnavailable || res.status === 503) {
+          alert('⚠️ Génération d\'image indisponible en production (Vercel). L\'API ZAI interne n\'est accessible que depuis l\'environnement de développement local. Pour activer l\'IA en prod, il faut connecter une API publique (Google Gemini ou OpenAI).')
+        } else {
+          throw new Error(err?.error || 'Échec')
+        }
+      } else {
+        const data = await res.json()
+        setGeneratedImage({ url: data.imageUrl, prompt: imagePrompt })
       }
-      const data = await res.json()
-      setGeneratedImage({ url: data.imageUrl, prompt: imagePrompt })
     } catch (e) {
       alert('Erreur génération image : ' + (e as Error).message)
     } finally {

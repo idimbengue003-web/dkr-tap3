@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-guard'
 import { db } from '@/lib/db'
-import { callZaiChat } from '@/lib/zai-api'
+import { callZaiChat, ZaiUnavailableError } from '@/lib/zai-api'
 
 /**
  * POST /api/ai/chat — Assistant IA pour aider à créer/personnaliser cartes et QR
@@ -134,6 +134,17 @@ EXEMPLES :
     })
   } catch (error: any) {
     console.error('[POST /api/ai/chat]', error)
+    // Cas spécial : IA indisponible en production (Vercel ne peut pas atteindre l'API interne)
+    if (error instanceof ZaiUnavailableError) {
+      return NextResponse.json(
+        {
+          error: 'IA indisponible en production',
+          message: error.message,
+          isProdUnavailable: true,
+        },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       {
         error: 'Erreur lors de la communication avec l\'IA',

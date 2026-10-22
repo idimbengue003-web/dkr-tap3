@@ -1,14 +1,18 @@
 /**
- * Helper direct pour appeler l'API ZAI (bypass du SDK z-ai-web-dev-sdk).
+ * Helper direct pour appeler l'API ZAI.
  *
- * Le SDK nécessite un fichier .z-ai-config dans process.cwd() / os.homedir() / /etc/
- * Sur Vercel serverless, ces chemins ne contiennent pas le fichier → erreur.
+ * ⚠️ IMPORTANT : L'API `internal-api.z.ai` n'est accessible QUE depuis
+ * l'infrastructure interne de Z.ai (dev environment). Depuis Vercel production
+ * (cloud public), les IPs sont privées (172.25.x.x) → timeout systématique.
  *
- * Solution : on appelle directement l'API ZAI avec fetch + credentials hardcodés.
- * (Les credentials sont déjà commités dans .z-ai-config de toute façon, donc les
- * avoir aussi en code ne change rien niveau sécurité.)
+ * Donc les fonctions IA (chat + image gen) marchent en LOCAL (dev) mais
+ * PAS en production sur Vercel.
  *
- * Source de la configuration : /etc/.z-ai-config (copié dans dkr-tap/.z-ai-config)
+ * Solutions pour activer l'IA en production :
+ * 1. Utiliser un LLM public (OpenAI, Anthropic, Gemini) avec une clé API
+ * 2. Mettre en place un proxy serveur qui forward vers internal-api.z.ai
+ *    (mais nécessite une infra toujours up)
+ * 3. Accepter que l'IA ne marche qu'en dev local
  */
 
 const ZAI_CONFIG = {
@@ -31,13 +35,18 @@ function buildHeaders(): Record<string, string> {
   }
 }
 
+/** Erreur spécifique levée quand l'API ZAI n'est pas accessible */
+export class ZaiUnavailableError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ZaiUnavailableError'
+  }
+}
+
 /**
- * Appelle l'API chat completions de ZAI directement (sans SDK).
- * Reproduit le comportement de zai.chat.completions.create().
+ * Appelle l'API chat completions de ZAI directement.
  *
- * @param messages Tableau de { role: 'assistant'|'user', content: string }
- * @param options Options supplémentaires (thinking, stream, etc.)
- * @returns La réponse JSON de l'API (structure: { choices: [{ message: { content }}] })
+ * @throws {ZaiUnavailableError} Si l'API n'est pas accessible (prod Vercel)
  */
 export async function callZaiChat(
   messages: Array<{ role: 'assistant' | 'user'; content: string }>,
@@ -49,30 +58,40 @@ export async function callZaiChat(
     thinking: options?.thinking || { type: 'disabled' as const },
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: buildHeaders(),
-    body: JSON.stringify(body),
-  })
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: buildHeaders(),
+      body: JSON.stringify(body),
+    })
 
-  if (!response.ok) {
-    const errorBody = await response.text()
-    throw new Error(`ZAI chat API failed (${response.status}): ${errorBody}`)
+    if (!response.ok) {
+      const errorBody = await response.text()
+      throw new Error(`ZAI chat API failed (${response.status}): ${errorBody}`)
+    }
+
+    return await response.json()
+  } catch (e: any) {
+    // Détecter les erreurs de connexion/timeout → API ZAI inaccessible
+    if (
+      e?.cause?.code === 'UND_ERR_CONNECT_TIMEOUT' ||
+      e?.name === 'TypeError' ||
+      e?.message?.includes('fetch failed') ||
+      e?.message?.includes('ECONNREFUSED') ||
+      e?.message?.includes('ENOTFOUND')
+    ) {
+      throw new ZaiUnavailableError(
+        'IA indisponible en production. Le service ZAI interne est accessible uniquement depuis l\'environnement de développement local.'
+      )
+    }
+    throw e
   }
-
-  return await response.json()
 }
 
 /**
- * Appelle l'API image generations de ZAI directement (sans SDK).
- * Reproduit le comportement de zai.images.generations.create().
+ * Appelle l'API image generations de ZAI directement.
  *
- * L'API retourne des URLs d'images. On les télécharge en base64 pour
- * cohérence avec le SDK (qui faisait la même chose en interne).
- *
- * @param prompt Description de l'image à générer
- * @param size Taille souhaitée (default: '1024x1024' pour sticker carré)
- * @returns { data: [{ base64: string }] } — base64 PNG de l'image générée
+ * @throws {ZaiUnavailableError} Si l'API n'est pas accessible (prod Vercel)
  */
 export async function callZaiImage(
   prompt: string,
@@ -81,42 +100,54 @@ export async function callZaiImage(
   const url = `${ZAI_CONFIG.baseUrl}/images/generations`
   const body = { prompt, size }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: buildHeaders(),
-    body: JSON.stringify(body),
-  })
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: buildHeaders(),
+      body: JSON.stringify(body),
+    })
 
-  if (!response.ok) {
-    const errorBody = await response.text()
-    throw new Error(`ZAI image API failed (${response.status}): ${errorBody}`)
-  }
+    if (!response.ok) {
+      const errorBody = await response.text()
+      throw new Error(`ZAI image API failed (${response.status}): ${errorBody}`)
+    }
 
-  const result = await response.json()
+    const result = await response.json()
 
-  // L'API peut retourner soit des URLs (à télécharger) soit directement du base64
-  // On standardise en base64 (comme le faisait le SDK)
-  if (Array.isArray(result?.data)) {
-    const processed = await Promise.all(
-      result.data.map(async (item: any) => {
-        if (item.base64) return item
-        if (item.url) {
-          // Télécharger l'image et la convertir en base64
-          try {
-            const imgRes = await fetch(item.url)
-            const arrayBuffer = await imgRes.arrayBuffer()
-            const buffer = Buffer.from(arrayBuffer)
-            return { base64: buffer.toString('base64') }
-          } catch (e) {
-            console.error('[zai-api] Erreur téléchargement image:', e)
-            return item
+    if (Array.isArray(result?.data)) {
+      const processed = await Promise.all(
+        result.data.map(async (item: any) => {
+          if (item.base64) return item
+          if (item.url) {
+            try {
+              const imgRes = await fetch(item.url)
+              const arrayBuffer = await imgRes.arrayBuffer()
+              const buffer = Buffer.from(arrayBuffer)
+              return { base64: buffer.toString('base64') }
+            } catch (e) {
+              console.error('[zai-api] Erreur téléchargement image:', e)
+              return item
+            }
           }
-        }
-        return item
-      })
-    )
-    return { ...result, data: processed }
-  }
+          return item
+        })
+      )
+      return { ...result, data: processed }
+    }
 
-  return result
+    return result
+  } catch (e: any) {
+    if (
+      e?.cause?.code === 'UND_ERR_CONNECT_TIMEOUT' ||
+      e?.name === 'TypeError' ||
+      e?.message?.includes('fetch failed') ||
+      e?.message?.includes('ECONNREFUSED') ||
+      e?.message?.includes('ENOTFOUND')
+    ) {
+      throw new ZaiUnavailableError(
+        'IA indisponible en production. Le service ZAI interne est accessible uniquement depuis l\'environnement de développement local.'
+      )
+    }
+    throw e
+  }
 }

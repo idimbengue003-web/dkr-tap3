@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-guard'
-import { callZaiImage } from '@/lib/zai-api'
+import { callZaiImage, ZaiUnavailableError } from '@/lib/zai-api'
 
 /**
  * POST /api/ai/generate-design — Génère une image de design pour sticker QR
@@ -119,6 +119,17 @@ for a QR code sticker.`
     })
   } catch (error: any) {
     console.error('[POST /api/ai/generate-design]', error)
+    // Cas spécial : IA indisponible en production (Vercel ne peut pas atteindre l'API interne)
+    if (error instanceof ZaiUnavailableError) {
+      return NextResponse.json(
+        {
+          error: 'IA indisponible en production',
+          message: error.message,
+          isProdUnavailable: true,
+        },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       {
         error: 'Erreur lors de la génération de l\'image',
