@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-guard'
+import { callZaiImage } from '@/lib/zai-api'
 
 /**
  * POST /api/ai/generate-design — Génère une image de design pour sticker QR
@@ -89,16 +90,11 @@ Stripe branded cards. African-inspired but minimalist. High-end feel.
 Generate a single square image, 1024×1024, ready to be used as background
 for a QR code sticker.`
 
-    // Appel à l'API de génération d'images via z-ai-web-dev-sdk
-    const { default: ZAI } = await import('z-ai-web-dev-sdk')
-    const zai = await ZAI.create()
+    // Appel à l'API ZAI directement (bypass du SDK qui a besoin d'un fichier
+    // .z-ai-config absent sur Vercel serverless)
+    const response = await callZaiImage(fullPrompt, '1024x1024')
 
-    const response = await zai.images.generations.create({
-      prompt: fullPrompt,
-      size: '1024x1024', // carré pour sticker
-    })
-
-    // ⚠️ L'API renvoie du base64 dans data[].base64
+    // ⚠️ L'API peut retourner soit du base64, soit des URLs (déjà téléchargées par callZaiImage)
     const base64 = response?.data?.[0]?.base64
     if (!base64) {
       console.error('[generate-design] Réponse inattendue (pas de base64):', JSON.stringify(response).slice(0, 800))

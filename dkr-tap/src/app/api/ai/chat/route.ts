@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-guard'
 import { db } from '@/lib/db'
+import { callZaiChat } from '@/lib/zai-api'
 
 /**
  * POST /api/ai/chat — Assistant IA pour aider à créer/personnaliser cartes et QR
@@ -94,13 +95,8 @@ EXEMPLES :
 - User : "Quelle URL pour Google Reviews ?"
   → Tu expliques comment trouver l'URL de la fiche Google Maps du commerce`
 
-    // Appel à l'API LLM via z-ai-web-dev-sdk
-    // IMPORTANT : ce SDK utilise 'assistant' role pour le system prompt
-    // (pas 'system' comme OpenAI standard) + thinking: { type: 'disabled' }
-    const { default: ZAI } = await import('z-ai-web-dev-sdk')
-    const zai = await ZAI.create()
-
-    // Construction des messages selon le pattern du SDK
+    // Appel à l'API ZAI directement (bypass du SDK qui a besoin d'un fichier
+    // .z-ai-config absent sur Vercel serverless)
     // Le system prompt est en role: 'assistant' (convention z-ai-web-dev-sdk)
     const sdkMessages: Array<{ role: 'assistant' | 'user'; content: string }> = [
       { role: 'assistant', content: systemPrompt },
@@ -111,10 +107,7 @@ EXEMPLES :
       { role: 'user', content: userMessage },
     ]
 
-    const response = await zai.chat.completions.create({
-      messages: sdkMessages,
-      thinking: { type: 'disabled' },
-    })
+    const response = await callZaiChat(sdkMessages, { thinking: { type: 'disabled' } })
 
     // Extraction du texte de la réponse (structure OpenAI-like)
     const assistantMessage =
