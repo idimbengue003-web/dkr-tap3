@@ -95,27 +95,41 @@ EXEMPLES :
   → Tu expliques comment trouver l'URL de la fiche Google Maps du commerce`
 
     // Appel à l'API LLM via z-ai-web-dev-sdk
-    // On importe dynamiquement pour éviter les soucis SSR
+    // IMPORTANT : ce SDK utilise 'assistant' role pour le system prompt
+    // (pas 'system' comme OpenAI standard) + thinking: { type: 'disabled' }
     const { default: ZAI } = await import('z-ai-web-dev-sdk')
     const zai = await ZAI.create()
 
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...history.map((m) => ({ role: m.role, content: m.content })),
+    // Construction des messages selon le pattern du SDK
+    // Le system prompt est en role: 'assistant' (convention z-ai-web-dev-sdk)
+    const sdkMessages: Array<{ role: 'assistant' | 'user'; content: string }> = [
+      { role: 'assistant', content: systemPrompt },
+      ...history.map((m) => ({
+        role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+        content: m.content,
+      })),
       { role: 'user', content: userMessage },
     ]
 
     const response = await zai.chat.completions.create({
-      messages,
-      temperature: 0.7,
-      max_tokens: 800,
+      messages: sdkMessages,
+      thinking: { type: 'disabled' },
     })
 
-    // La structure de réponse peut varier — on extrait le texte du premier choix
+    // Extraction du texte de la réponse (structure OpenAI-like)
     const assistantMessage =
       response?.choices?.[0]?.message?.content ||
       response?.message?.content ||
-      (typeof response === 'string' ? response : 'Désolé, je n\'ai pas pu générer de réponse. Réessaie.')
+      response?.content ||
+      (typeof response === 'string' ? response : null)
+
+    if (!assistantMessage) {
+      console.error('[ai/chat] Réponse inattendue de l\'API:', JSON.stringify(response).slice(0, 800))
+      return NextResponse.json(
+        { error: 'L\'IA n\'a pas pu générer de réponse. Réessaie.' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({
       message: assistantMessage,
