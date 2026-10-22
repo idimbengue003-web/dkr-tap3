@@ -71,13 +71,13 @@ export function Navbar({ brandName, brandLogo, brandPhone, categories }: Props) 
     <>
       <header className="sticky top-0 z-50 bg-zinc-950/90 backdrop-blur border-b border-zinc-800">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
-          {/* Logo */}
-          <div className="flex items-center gap-3">
+          {/* Logo + nom cliquables → retour accueil */}
+          <a href="/" className="flex items-center gap-3" aria-label="Retour à l'accueil">
             <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center p-1.5">
               <img src={brandLogo} alt={`Logo ${brandName}`} width={28} height={28} />
             </div>
             <span className="text-xl font-bold tracking-tight">{brandName}</span>
-          </div>
+          </a>
 
           {/* Nav desktop */}
           <nav className="hidden sm:flex items-center gap-6 text-sm text-zinc-400">

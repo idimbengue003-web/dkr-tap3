@@ -23,8 +23,8 @@ export const metadata: Metadata = {
   keywords: ["QR code", "réseaux sociaux", "Instagram", "TikTok", "Google Reviews", "WhatsApp", "stickers", "Dakar", "Sénégal", BRAND_NAME],
   authors: [{ name: BRAND_NAME }],
   icons: {
-    icon: "/dkrtap-logo.jpg",
-    apple: "/dkrtap-logo.jpg",
+    icon: "/dkrtap-logo.png",
+    apple: "/dkrtap-logo.png",
   },
   manifest: "/manifest.json",
   // Vérification Google Search Console (pour l'indexation SEO)
@@ -50,11 +50,50 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // JSON-LD structured data pour Google Search (Organization + logo)
+  const orgSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": BRAND_NAME,
+    "url": "https://www.dkrtap.site",
+    "logo": "https://www.dkrtap.site/dkrtap-logo.png",
+    "description": "Vos cartes QR DKR TAP redirigent vos clients directement vers vos réseaux sociaux. TikTok, Instagram, Google, WhatsApp — choisissez votre réseau, on s'occupe du reste.",
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "telephone": "+221789271296",
+      "contactType": "customer service",
+      "availableLanguage": ["French"]
+    },
+    "address": {
+      "@type": "PostalAddress",
+      "addressCountry": "SN",
+      "addressLocality": "Dakar"
+    }
+  }
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": BRAND_NAME,
+    "url": "https://www.dkrtap.site",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://www.dkrtap.site/?s={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
   return (
     <html lang="fr" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        />
         <Providers>
           {children}
           <Toaster />

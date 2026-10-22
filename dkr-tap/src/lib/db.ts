@@ -544,7 +544,7 @@ export const db = {
       { name: 'WhatsApp', network: 'whatsapp', price: 2500, description: 'Vos clients vous contactent directement sur WhatsApp Business en scannant le sticker.', imagePath: '/network-whatsapp.svg' },
       { name: 'YouTube', network: 'youtube', price: 3500, description: 'Augmentez vos abonnés YouTube. Redirige vers votre chaîne ou une vidéo spécifique.', imagePath: '/network-youtube.svg' },
       { name: 'Facebook', network: 'facebook', price: 2500, description: 'Gagnez des fans Facebook et des recommandations sur votre page professionnelle.', imagePath: '/network-facebook.svg' },
-      { name: 'Personnalisé', network: null, price: 5000, description: 'Votre propre design, votre propre URL. Importez votre image et placez le QR où vous voulez.', imagePath: '/dkrtap-logo.jpg' },
+      { name: 'Personnalisé', network: null, price: 5000, description: 'Votre propre design, votre propre URL. Importez votre image et placez le QR où vous voulez.', imagePath: '/dkrtap-logo.png' },
       { name: 'Snapchat', network: 'snapchat', price: 2500, description: 'Ajoutez vos clients sur Snapchat et partagez vos stories.', imagePath: '/network-snapchat.svg' },
     ]
     const list: string[] = []

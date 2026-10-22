@@ -3,7 +3,7 @@ import { Navbar } from '@/components/navbar'
 import { Calendar, ArrowRight } from 'lucide-react'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
-const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.jpg'
+const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.png'
 const BRAND_PHONE = process.env.NEXT_PUBLIC_BRAND_PHONE || '78 927 12 96'
 
 export const metadata = {
@@ -18,7 +18,7 @@ const ARTICLES = [
     excerpt: "Les avis Google sont devenus le facteur #1 de décision d'achat au Sénégal. Voici comment les multiplier grâce aux cartes QR, sans effort supplémentaire.",
     date: '2025-10-15',
     readTime: '4 min',
-    cover: '/dkrtap-logo.jpg',
+    cover: '/dkrtap-logo.png',
   },
   {
     slug: 'augmenter-abonnes-instagram-commercant',

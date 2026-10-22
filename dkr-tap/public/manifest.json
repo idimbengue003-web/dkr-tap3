@@ -12,25 +12,25 @@
   "categories": ["business", "shopping", "productivity"],
   "icons": [
     {
-      "src": "/dkrtap-logo.jpg",
+      "src": "/dkrtap-logo.png",
       "sizes": "192x192",
       "type": "image/jpeg",
       "purpose": "any"
     },
     {
-      "src": "/dkrtap-logo.jpg",
+      "src": "/dkrtap-logo.png",
       "sizes": "512x512",
       "type": "image/jpeg",
       "purpose": "any"
     },
     {
-      "src": "/dkrtap-logo.jpg",
+      "src": "/dkrtap-logo.png",
       "sizes": "192x192",
       "type": "image/jpeg",
       "purpose": "maskable"
     },
     {
-      "src": "/dkrtap-logo.jpg",
+      "src": "/dkrtap-logo.png",
       "sizes": "512x512",
       "type": "image/jpeg",
       "purpose": "maskable"
@@ -41,19 +41,19 @@
       "name": "Mes commandes",
       "short_name": "Commandes",
       "url": "/account",
-      "icons": [{ "src": "/dkrtap-logo.jpg", "sizes": "96x96", "type": "image/jpeg" }]
+      "icons": [{ "src": "/dkrtap-logo.png", "sizes": "96x96", "type": "image/jpeg" }]
     },
     {
       "name": "Recharger mon solde",
       "short_name": "Recharger",
       "url": "/recharger",
-      "icons": [{ "src": "/dkrtap-logo.jpg", "sizes": "96x96", "type": "image/jpeg" }]
+      "icons": [{ "src": "/dkrtap-logo.png", "sizes": "96x96", "type": "image/jpeg" }]
     },
     {
       "name": "Voir les modèles",
       "short_name": "Modèles",
       "url": "/#modeles",
-      "icons": [{ "src": "/dkrtap-logo.jpg", "sizes": "96x96", "type": "image/jpeg" }]
+      "icons": [{ "src": "/dkrtap-logo.png", "sizes": "96x96", "type": "image/jpeg" }]
     }
   ]
 }

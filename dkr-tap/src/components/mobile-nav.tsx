@@ -131,7 +131,7 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+              <a href="/" onClick={() => setOpen(false)} className="flex items-center justify-between p-4 border-b border-zinc-800" aria-label="Retour à l'accueil">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center p-1">
                     <img src={brandLogo} alt="" width={20} height={20} />
@@ -139,13 +139,13 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
                   <span className="font-bold tracking-tight">{brandName}</span>
                 </div>
                 <button
-                  onClick={() => setOpen(false)}
+                  onClick={(e) => { e.preventDefault(); setOpen(false) }}
                   className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 shrink-0"
                   aria-label="Fermer le menu"
                 >
                   <X size={18} />
                 </button>
-              </div>
+              </a>
 
               {/* Liens — scrollable si trop long */}
               <nav className="flex-1 overflow-y-auto py-2">

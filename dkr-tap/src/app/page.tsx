@@ -6,7 +6,7 @@ import { Navbar } from '@/components/navbar'
 import { db, type Category } from '@/lib/db'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
-const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.jpg'
+const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.png'
 const BRAND_PHONE = process.env.NEXT_PUBLIC_BRAND_PHONE || '78 927 12 96'
 // Lien de paiement Wave — l'utilisateur le fournira plus tard
 // Format: https://pay.wave.com/... ou un lien personnalisé
@@ -64,7 +64,7 @@ const MODELES = [
   },
   {
     name: 'Personnalisé',
-    icon: '/dkrtap-logo.jpg',
+    icon: '/dkrtap-logo.png',
     color: '#10b981',
     price: '5 000',
     desc: 'Votre propre design, votre propre URL. Importez votre image et placez le QR où vous voulez.',
@@ -87,17 +87,13 @@ const TARIFS = [
   { qty: '20 cartes et +', price: '1 500', unit: 'FCFA / carte', desc: 'Meilleur tarif' },
 ]
 
-// Récupère les catégories et photos côté serveur
+// Récupère les catégories côté serveur
 async function getCategories(): Promise<Category[]> {
   try { return await db.listCategories() } catch { return [] }
-}
-async function getModelPhotos(): Promise<(string | null)[]> {
-  try { return await db.getAllModelPhotos() } catch { return [null, null, null, null] }
 }
 
 export default async function LandingPage() {
   const categories = await getCategories()
-  const modelPhotos = await getModelPhotos()
   return (
     <div className="min-h-screen flex flex-col bg-zinc-950 text-white">
       {/* ===== NAVBAR (avec menu hamburger + panier revendeur) ===== */}
@@ -183,7 +179,7 @@ export default async function LandingPage() {
           <div className="text-center mb-12">
             <p className="text-emerald-400 text-sm font-bold uppercase tracking-wider mb-2">Ils nous font confiance</p>
             <h2 className="text-3xl sm:text-4xl font-bold mb-2">
-              Déjà adopté par des commerçants dakartois
+              Déjà adopté par des commerçants dakaroi
             </h2>
             <p className="text-zinc-400 max-w-2xl mx-auto">
               Salons de coiffure, boutiques de prêt-à-porter, restaurants, cafés, marchands ambulants... ils ont choisi DKR TAP pour grossir leur audience.
@@ -333,23 +329,6 @@ export default async function LandingPage() {
           <p className="text-center text-zinc-400 mb-12 max-w-2xl mx-auto">
             Des designs professionnels pour chaque réseau social. Chaque sticker inclut la page d&apos;attente aux couleurs de la marque.
           </p>
-
-          {/* 4 photos — récupérées depuis l'admin (KV) ou placeholder */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="aspect-square rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 flex items-center justify-center">
-                {modelPhotos[i] ? (
-                  <img
-                    src={modelPhotos[i] as string}
-                    alt={`Modele ${i + 1}`}
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <span className="text-zinc-600 text-sm">Photo {i + 1} — importe-la depuis l'admin</span>
-                )}
-              </div>
-            ))}
-          </div>
 
           {/* Catégories cliquables → ouvre les modèles + commande */}
           {categories.length > 0 ? (

@@ -132,7 +132,7 @@ type StatsPayload = {
 // Branding — lu depuis les variables d'env NEXT_PUBLIC_*
 // (évalué au build time côté client, mais reste configurable via .env)
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'ScanBridge'
-const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.jpg'
+const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.png'
 const BRAND_PHONE = process.env.NEXT_PUBLIC_BRAND_PHONE || ''
 
 // Helper pour charger une Image depuis une URL (Promise-based).
