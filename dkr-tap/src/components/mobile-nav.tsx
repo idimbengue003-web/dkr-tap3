@@ -75,7 +75,7 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
   return (
     <>
       {/* Barre mobile — optimisée pour petit écran */}
-      <div className="sm:hidden flex items-center gap-1.5">
+      <div className="md:hidden flex items-center gap-1.5">
         {/* Bouton panier — compact */}
         <button
           onClick={onOpenCart}
@@ -111,7 +111,7 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm sm:hidden"
+            className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           >
             <motion.div

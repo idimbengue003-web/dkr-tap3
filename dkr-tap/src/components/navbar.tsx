@@ -80,14 +80,14 @@ export function Navbar({ brandName, brandLogo, brandPhone, categories }: Props) 
           </a>
 
           {/* Nav desktop */}
-          <nav className="hidden sm:flex items-center gap-6 text-sm text-zinc-400">
+          <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
             {LINKS.map((l) => (
               <a key={l.href} href={l.href} className="hover:text-white transition-colors">{l.label}</a>
             ))}
           </nav>
 
           {/* Boutons desktop */}
-          <div className="hidden sm:flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-2">
             {/* User menu (connexion Google) */}
             <UserMenu />
 
@@ -123,7 +123,7 @@ export function Navbar({ brandName, brandLogo, brandPhone, categories }: Props) 
           </div>
 
           {/* Boutons mobile : panier + hamburger */}
-          <div className="sm:hidden">
+          <div className="md:hidden">
             <MobileNav
               brandName={brandName}
               brandLogo={brandLogo}
