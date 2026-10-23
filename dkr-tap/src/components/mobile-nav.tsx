@@ -58,18 +58,19 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
         </svg>
       </button>
 
-      {/* Menu — rendu UNIQUEMENT quand open (pas de translate caché) */}
+      {/* Menu — overlay + panel FRÈRES DIRECTS (pas imbriqués) */}
       {open && (
-        <div className="fixed inset-0 z-[60]" style={{ overflowY: 'auto' }}>
-          {/* Overlay noir */}
+        <>
+          {/* Overlay noir — couvre tout l'écran */}
           <div
-            className="fixed inset-0 bg-black/80"
+            className="fixed inset-0 z-[60] bg-black"
+            style={{ opacity: 0.8 }}
             onClick={() => setOpen(false)}
           />
 
-          {/* Panel blanc qui coulisse */}
+          {/* Panel — opaque, pas de transparence */}
           <div
-            className="fixed top-0 right-0 h-full w-[85vw] max-w-[360px] bg-zinc-950 border-l border-zinc-800"
+            className="fixed top-0 right-0 h-full w-[85vw] max-w-[360px] z-[61] bg-zinc-950 border-l border-zinc-800 overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -128,7 +129,7 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
               </a>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )
