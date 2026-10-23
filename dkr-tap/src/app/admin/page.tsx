@@ -976,11 +976,11 @@ export default function Home() {
 
       // 5. Dessiner le QR code à la position sauvegardée (ou bas-droite par défaut)
       //    Position = CENTRE du QR en % des dimensions de l'image.
-      //    Taille : qrSize % du min(width, height), entre 200px et 800px.
+      //    Taille : qrSize % du min(width, height) — SANS clamp fixe.
+      //    Le QR fait exactement la même proportion que dans l'aperçu.
       const minDim = Math.min(bgImg.naturalWidth, bgImg.naturalHeight)
-      const clampedQrSize = Math.max(0.1, Math.min(0.5, liveQrSize ?? 0.25))
-      let qrSize = Math.round(minDim * clampedQrSize)
-      qrSize = Math.max(200, Math.min(800, qrSize))
+      const clampedQrSize = Math.max(0.05, Math.min(0.8, liveQrSize ?? 0.25))
+      const qrSize = Math.round(minDim * clampedQrSize)
       // Position du CENTRE du QR (en px) à partir de la position LIVE passée en argument
       // (la state qrPosition est mise à jour par le drag, contrairement à sticker.qrPosition
       // qui est resté à la valeur initiale du chargement du modal)
@@ -1763,9 +1763,104 @@ export default function Home() {
               {/* Texte overlay (uniquement si une image est uploadée) */}
               {stickerImageDataUrl && (
                 <div className="mt-3 w-full space-y-3 border-t border-zinc-100 pt-3">
+                  {/* Tableau de bord QR */}
+                  <div className="rounded-lg border border-zinc-200 p-3 space-y-3 bg-zinc-50">
+                    <p className="text-xs font-bold text-zinc-700 uppercase tracking-wider">
+                      🎛️ Tableau de bord QR
+                    </p>
+
+                    {/* Taille du QR */}
+                    <div>
+                      <Label className="text-[10px] text-zinc-600 mb-1 flex items-center justify-between">
+                        <span>Taille du QR</span>
+                        <span className="font-bold text-emerald-600">{Math.round(qrSize * 100)}%</span>
+                      </Label>
+                      <input
+                        type="range"
+                        min="0.05"
+                        max="0.8"
+                        step="0.01"
+                        value={qrSize}
+                        onChange={(e) => handleQrSizeChange(parseFloat(e.target.value))}
+                        className="w-full accent-emerald-500"
+                      />
+                      <div className="flex justify-between text-[9px] text-zinc-400 mt-0.5">
+                        <span>5%</span>
+                        <span>25% (défaut)</span>
+                        <span>80%</span>
+                      </div>
+                    </div>
+
+                    {/* Position X/Y précise */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-[10px] text-zinc-600 mb-0.5 block">Position X (horizontal)</Label>
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="0.9"
+                          step="0.01"
+                          value={qrPosition.x}
+                          onChange={(e) => {
+                            const newPos = { ...qrPosition, x: parseFloat(e.target.value) }
+                            setQrPosition(newPos)
+                            void saveStickerField({ qrPosition: newPos })
+                          }}
+                          className="w-full accent-emerald-500"
+                        />
+                        <span className="text-[9px] text-zinc-400">{Math.round(qrPosition.x * 100)}%</span>
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-zinc-600 mb-0.5 block">Position Y (vertical)</Label>
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="0.9"
+                          step="0.01"
+                          value={qrPosition.y}
+                          onChange={(e) => {
+                            const newPos = { ...qrPosition, y: parseFloat(e.target.value) }
+                            setQrPosition(newPos)
+                            void saveStickerField({ qrPosition: newPos })
+                          }}
+                          className="w-full accent-emerald-500"
+                        />
+                        <span className="text-[9px] text-zinc-400">{Math.round(qrPosition.y * 100)}%</span>
+                      </div>
+                    </div>
+
+                    {/* Boutons de position rapide */}
+                    <div className="grid grid-cols-3 gap-1">
+                      <button
+                        onClick={() => { const p = {x: 0.15, y: 0.85}; setQrPosition(p); void saveStickerField({ qrPosition: p }) }}
+                        className="text-[9px] py-1 rounded border border-zinc-200 hover:border-emerald-400 hover:bg-emerald-50"
+                      >↙ Bas-G</button>
+                      <button
+                        onClick={() => { const p = {x: 0.5, y: 0.85}; setQrPosition(p); void saveStickerField({ qrPosition: p }) }}
+                        className="text-[9px] py-1 rounded border border-zinc-200 hover:border-emerald-400 hover:bg-emerald-50"
+                      >↓ Bas-C</button>
+                      <button
+                        onClick={() => { const p = {x: 0.85, y: 0.85}; setQrPosition(p); void saveStickerField({ qrPosition: p }) }}
+                        className="text-[9px] py-1 rounded border border-zinc-200 hover:border-emerald-400 hover:bg-emerald-50"
+                      >↘ Bas-D</button>
+                      <button
+                        onClick={() => { const p = {x: 0.15, y: 0.5}; setQrPosition(p); void saveStickerField({ qrPosition: p }) }}
+                        className="text-[9px] py-1 rounded border border-zinc-200 hover:border-emerald-400 hover:bg-emerald-50"
+                      >← Milieu-G</button>
+                      <button
+                        onClick={() => { const p = {x: 0.5, y: 0.5}; setQrPosition(p); void saveStickerField({ qrPosition: p }) }}
+                        className="text-[9px] py-1 rounded border border-zinc-200 hover:border-emerald-400 hover:bg-emerald-50"
+                      >● Centre</button>
+                      <button
+                        onClick={() => { const p = {x: 0.85, y: 0.5}; setQrPosition(p); void saveStickerField({ qrPosition: p }) }}
+                        className="text-[9px] py-1 rounded border border-zinc-200 hover:border-emerald-400 hover:bg-emerald-50"
+                      >→ Milieu-D</button>
+                    </div>
+                  </div>
+
                   {/* Indice redimensionnement */}
                   <p className="text-[10px] text-zinc-400 text-center">
-                    📐 Glisse la pastille verte (coin du QR) pour redimensionner
+                    📐 Glisse aussi la pastille verte (coin du QR) pour redimensionner directement sur l'image
                   </p>
 
                   {/* Toggle texte overlay */}
