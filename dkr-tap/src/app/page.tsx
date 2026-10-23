@@ -109,44 +109,44 @@ export default async function LandingPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-emerald-900/20 via-zinc-950 to-zinc-950" />
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[120px]" />
 
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 py-20 sm:py-32 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium mb-8">
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-32 text-center">
+          <div className="inline-flex items-center gap-2 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs sm:text-sm font-medium mb-6 sm:mb-8">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             Disponible maintenant au Sénégal
           </div>
 
-          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight mb-6">
+          <h1 className="text-3xl sm:text-6xl font-bold tracking-tight mb-4 sm:mb-6 leading-tight">
             DKR TAP. <span className="text-emerald-400">Grow your business.</span>
             <br />
-            <span className="text-zinc-300 text-2xl sm:text-3xl">Un scan. Un abonné. Un avis cinq étoiles.</span>
+            <span className="text-zinc-300 text-lg sm:text-3xl font-normal">Un scan. Un abonné. Un avis cinq étoiles.</span>
           </h1>
 
-          <p className="text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto mb-10">
+          <p className="text-base sm:text-xl text-zinc-400 max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed">
             Vos cartes QR DKR TAP redirigent vos clients directement vers vos réseaux sociaux.
             TikTok, Instagram, Google, WhatsApp — choisissez votre réseau, on s'occupe du reste.
             Vos clients scannent, votre audience grandit.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full sm:w-auto">
             <a
               href="/recharger"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20"
+              className="inline-flex items-center gap-2 px-5 py-3 sm:px-6 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 w-full sm:w-auto justify-center text-sm sm:text-base"
             >
               Recharger mon solde
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>
               </svg>
             </a>
             <a
               href="/#modeles"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-zinc-800 text-white font-semibold hover:bg-zinc-700 transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-3 sm:px-6 rounded-xl bg-zinc-800 text-white font-semibold hover:bg-zinc-700 transition-colors w-full sm:w-auto justify-center text-sm sm:text-base"
             >
               Voir les modèles
             </a>
           </div>
 
           {/* Image hero illustrative */}
-          <div className="mt-12 max-w-2xl mx-auto rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl shadow-emerald-500/10">
+          <div className="mt-8 sm:mt-12 max-w-2xl mx-auto rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl shadow-emerald-500/10">
             <img
               src="/hero-scan.png"
               alt="Smartphone scannant un sticker QR code DKR TAP"
@@ -156,7 +156,7 @@ export default async function LandingPage() {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-8 mt-16 max-w-2xl mx-auto">
+          <div className="grid grid-cols-3 gap-4 sm:gap-8 mt-10 sm:mt-16 max-w-2xl mx-auto">
             <div>
               <p className="text-3xl font-bold text-emerald-400">8+</p>
               <p className="text-sm text-zinc-500">Réseaux disponibles</p>
@@ -174,11 +174,11 @@ export default async function LandingPage() {
       </section>
 
       {/* ===== PREUVES SOCIALES ===== */}
-      <section className="py-20 px-4 sm:px-6 bg-zinc-900/50">
+      <section className="py-12 px-4 sm:py-20 sm:px-6 bg-zinc-900/50">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <p className="text-emerald-400 text-sm font-bold uppercase tracking-wider mb-2">Ils nous font confiance</p>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-2">
+            <h2 className="text-2xl sm:text-4xl font-bold mb-2">
               Déjà adopté par des commerçants dakaroi
             </h2>
             <p className="text-zinc-400 max-w-2xl mx-auto">
@@ -259,9 +259,9 @@ export default async function LandingPage() {
       <ScrollSequence />
 
       {/* ===== COMMENT ÇA MARCHE ===== */}
-      <section className="py-20 px-4 sm:px-6">
+      <section className="py-12 px-4 sm:py-20 sm:px-6">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4">
+          <h2 className="text-2xl sm:text-4xl font-bold text-center mb-4">
             Comment ça marche
           </h2>
           <p className="text-center text-zinc-400 mb-12 max-w-2xl mx-auto">
@@ -321,9 +321,9 @@ export default async function LandingPage() {
       </section>
 
       {/* ===== MODÈLES ===== */}
-      <section id="modeles" className="py-20 px-4 sm:px-6 bg-zinc-900/50">
+      <section id="modeles" className="py-12 px-4 sm:py-20 sm:px-6 bg-zinc-900/50">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4">
+          <h2 className="text-2xl sm:text-4xl font-bold text-center mb-4">
             Nos modèles de stickers
           </h2>
           <p className="text-center text-zinc-400 mb-12 max-w-2xl mx-auto">
@@ -394,9 +394,9 @@ export default async function LandingPage() {
       </section>
 
       {/* ===== TARIFS PAR QUANTITÉ ===== */}
-      <section id="tarifs" className="py-20 px-4 sm:px-6">
+      <section id="tarifs" className="py-12 px-4 sm:py-20 sm:px-6">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4">
+          <h2 className="text-2xl sm:text-4xl font-bold text-center mb-4">
             Nos tarifs
           </h2>
           <p className="text-center text-zinc-400 mb-12 max-w-2xl mx-auto">
@@ -436,9 +436,9 @@ export default async function LandingPage() {
       </section>
 
       {/* ===== COMMANDER ===== */}
-      <section id="commander" className="py-20 px-4 sm:px-6 bg-emerald-500/5">
+      <section id="commander" className="py-12 px-4 sm:py-20 sm:px-6 bg-emerald-500/5">
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+          <h2 className="text-2xl sm:text-4xl font-bold mb-4">
             Prêt à commander ?
           </h2>
           <p className="text-zinc-400 mb-8">

@@ -14,7 +14,6 @@ import {
   MessageCircle,
   Package,
   Tag,
-  Sparkles,
   Home,
 } from 'lucide-react'
 import { UserMenu } from '@/components/user-menu'
@@ -31,10 +30,8 @@ type NavLink = {
   href: string
   label: string
   icon: typeof Home
-  external?: boolean
 }
 
-// Tous les liens visibles dans le menu hamburger mobile
 const MAIN_LINKS: NavLink[] = [
   { href: '/#modeles', label: 'Modèles', icon: Package },
   { href: '/#tarifs', label: 'Tarifs', icon: Tag },
@@ -56,7 +53,6 @@ const ACCOUNT_LINKS: NavLink[] = [
 export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenCart }: Props) {
   const [open, setOpen] = useState(false)
 
-  // Bloquer le scroll du body quand le menu est ouvert
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden'
@@ -68,7 +64,6 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
     }
   }, [open])
 
-  // Fermer avec la touche Escape
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
@@ -79,12 +74,9 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
 
   return (
     <>
-      {/* Barre mobile (s'affiche en dessous de sm) */}
-      <div className="sm:hidden flex items-center gap-2">
-        {/* User menu (connexion Google) */}
-        <UserMenu />
-
-        {/* Bouton panier */}
+      {/* Barre mobile — optimisée pour petit écran */}
+      <div className="sm:hidden flex items-center gap-1.5">
+        {/* Bouton panier — compact */}
         <button
           onClick={onOpenCart}
           className="relative w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center text-white hover:bg-zinc-700 transition-colors shrink-0"
@@ -102,17 +94,17 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
           )}
         </button>
 
-        {/* Bouton hamburger */}
+        {/* Bouton hamburger — plus visible */}
         <button
           onClick={() => setOpen(true)}
           className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center text-white hover:bg-zinc-700 transition-colors shrink-0"
           aria-label="Ouvrir le menu"
         >
-          <Menu size={20} />
+          <Menu size={22} />
         </button>
       </div>
 
-      {/* Drawer menu */}
+      {/* Drawer — full-width sur mobile, aligné parfaitement */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -126,104 +118,106 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'spring', stiffness: 260, damping: 30 }}
-              className="absolute right-0 top-0 h-full w-80 max-w-[88vw] bg-zinc-950 border-l border-zinc-800 flex flex-col"
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="absolute right-0 top-0 h-full w-full max-w-sm bg-zinc-950 border-l border-zinc-800 flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
-              <a href="/" onClick={() => setOpen(false)} className="flex items-center justify-between p-4 border-b border-zinc-800" aria-label="Retour à l'accueil">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center p-1">
-                    <img src={brandLogo} alt="" width={20} height={20} />
+              {/* Header — aligné */}
+              <a
+                href="/"
+                onClick={() => setOpen(false)}
+                className="flex items-center justify-between p-4 border-b border-zinc-800 shrink-0"
+                aria-label="Retour à l'accueil"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-zinc-900 flex items-center justify-center p-1">
+                    <img src={brandLogo} alt="" width={22} height={22} />
                   </div>
-                  <span className="font-bold tracking-tight">{brandName}</span>
+                  <span className="font-bold tracking-tight text-lg">{brandName}</span>
                 </div>
                 <button
                   onClick={(e) => { e.preventDefault(); setOpen(false) }}
-                  className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 shrink-0"
+                  className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 shrink-0"
                   aria-label="Fermer le menu"
                 >
-                  <X size={18} />
+                  <X size={20} />
                 </button>
               </a>
 
-              {/* Liens — scrollable si trop long */}
-              <nav className="flex-1 overflow-y-auto py-2">
+              {/* Liens — scrollable, pleine largeur */}
+              <nav className="flex-1 overflow-y-auto">
                 {/* Navigation principale */}
-                <Section label="Navigation">
-                  {MAIN_LINKS.map((link) => (
-                    <DrawerLink key={link.href} {...link} onClick={() => setOpen(false)} />
-                  ))}
-                </Section>
+                <div className="px-3 pt-3">
+                  <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                    Navigation
+                  </p>
+                  <div className="space-y-0.5">
+                    {MAIN_LINKS.map((link) => (
+                      <DrawerLink key={link.href} {...link} onClick={() => setOpen(false)} />
+                    ))}
+                  </div>
+                </div>
 
                 {/* Pages info */}
-                <Section label="Informations">
-                  {INFO_LINKS.map((link) => (
-                    <DrawerLink key={link.href} {...link} onClick={() => setOpen(false)} />
-                  ))}
-                </Section>
+                <div className="px-3 pt-4">
+                  <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                    Informations
+                  </p>
+                  <div className="space-y-0.5">
+                    {INFO_LINKS.map((link) => (
+                      <DrawerLink key={link.href} {...link} onClick={() => setOpen(false)} />
+                    ))}
+                  </div>
+                </div>
 
                 {/* Compte */}
-                <Section label="Mon compte">
-                  {ACCOUNT_LINKS.map((link) => (
-                    <DrawerLink key={link.href} {...link} onClick={() => setOpen(false)} />
-                  ))}
-                  {/* Panier avec compteur */}
-                  <button
-                    onClick={() => {
-                      setOpen(false)
-                      onOpenCart()
-                    }}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg text-white hover:bg-zinc-800 transition-colors font-medium"
-                  >
-                    <span className="flex items-center gap-3">
-                      <span className="w-5 h-5 flex items-center justify-center">
-                        <ShoppingCart size={18} className="text-emerald-400" />
+                <div className="px-3 pt-4 pb-2">
+                  <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                    Mon compte
+                  </p>
+                  <div className="space-y-0.5">
+                    {ACCOUNT_LINKS.map((link) => (
+                      <DrawerLink key={link.href} {...link} onClick={() => setOpen(false)} />
+                    ))}
+                    {/* Panier */}
+                    <button
+                      onClick={() => {
+                        setOpen(false)
+                        onOpenCart()
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-3.5 rounded-lg text-white hover:bg-zinc-800 hover:text-emerald-400 transition-colors font-medium"
+                    >
+                      <span className="w-5 h-5 flex items-center justify-center shrink-0">
+                        <ShoppingCart size={18} className="text-zinc-400" />
                       </span>
-                      Panier revendeur
-                    </span>
-                    {cartCount > 0 ? (
-                      <span className="min-w-[22px] h-5 px-1.5 rounded-full bg-emerald-500 text-black text-xs font-bold flex items-center justify-center">
-                        {cartCount}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-zinc-500">Vide</span>
-                    )}
-                  </button>
-                </Section>
+                      <span>Panier revendeur</span>
+                      {cartCount > 0 ? (
+                        <span className="ml-auto min-w-[22px] h-5 px-1.5 rounded-full bg-emerald-500 text-black text-xs font-bold flex items-center justify-center">
+                          {cartCount}
+                        </span>
+                      ) : (
+                        <span className="ml-auto text-[10px] text-zinc-600">Vide</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </nav>
 
-              {/* Footer avec bouton appel */}
-              <div className="p-4 border-t border-zinc-800 space-y-2">
+              {/* Footer — bouton appel */}
+              <div className="p-4 border-t border-zinc-800 shrink-0">
                 <a
                   href={`tel:${brandPhone.replace(/\s/g, '')}`}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400 transition-colors"
                 >
                   <Phone size={18} />
                   Appeler le {brandPhone}
                 </a>
-                <p className="text-center text-[10px] text-zinc-600">
-                  {brandName} — Dakar, Sénégal
-                </p>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
     </>
-  )
-}
-
-/* ----- Sous-composants ----- */
-
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="mb-2">
-      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-        {label}
-      </p>
-      <div className="space-y-0.5">{children}</div>
-    </div>
   )
 }
 
@@ -237,7 +231,7 @@ function DrawerLink({
     <a
       href={href}
       onClick={onClick}
-      className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-zinc-800 hover:text-emerald-400 transition-colors font-medium"
+      className="flex items-center gap-3 px-3 py-3.5 rounded-lg text-white hover:bg-zinc-800 hover:text-emerald-400 transition-colors font-medium"
     >
       <span className="w-5 h-5 flex items-center justify-center shrink-0">
         <Icon size={18} className="text-zinc-400" />
