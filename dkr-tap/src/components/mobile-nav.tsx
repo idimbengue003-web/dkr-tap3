@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 type Props = {
   brandName: string
@@ -24,17 +24,6 @@ const LINKS = [
 
 export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenCart }: Props) {
   const [open, setOpen] = useState(false)
-
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [open])
 
   return (
     <div className="md:hidden flex items-center gap-2">
@@ -69,84 +58,78 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
         </svg>
       </button>
 
-      {/* Menu overlay */}
+      {/* Menu — rendu UNIQUEMENT quand open (pas de translate caché) */}
       {open && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/80"
-          onClick={() => setOpen(false)}
-        />
+        <div className="fixed inset-0 z-[60]" style={{ overflowY: 'auto' }}>
+          {/* Overlay noir */}
+          <div
+            className="fixed inset-0 bg-black/80"
+            onClick={() => setOpen(false)}
+          />
+
+          {/* Panel blanc qui coulisse */}
+          <div
+            className="fixed top-0 right-0 h-full w-[85vw] max-w-[360px] bg-zinc-950 border-l border-zinc-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-950">
+              <a href="/" onClick={() => setOpen(false)} className="flex items-center gap-2">
+                <img src={brandLogo} alt="" width={28} height={28} className="rounded-lg" />
+                <span className="font-bold text-lg">{brandName}</span>
+              </a>
+              <button
+                onClick={() => setOpen(false)}
+                className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 shrink-0"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Liens */}
+            <div>
+              {LINKS.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  className="block px-5 py-4 text-white hover:bg-zinc-800 hover:text-emerald-400 border-b border-zinc-900 font-medium"
+                >
+                  {link.label}
+                </a>
+              ))}
+
+              {/* Panier */}
+              <button
+                onClick={() => { setOpen(false); onOpenCart() }}
+                className="w-full text-left px-5 py-4 text-white hover:bg-zinc-800 hover:text-emerald-400 border-b border-zinc-900 font-medium flex items-center justify-between"
+              >
+                <span>Panier revendeur</span>
+                {cartCount > 0 ? (
+                  <span className="min-w-[22px] h-5 px-1.5 rounded-full bg-emerald-500 text-black text-xs font-bold flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                ) : (
+                  <span className="text-xs text-zinc-600">Vide</span>
+                )}
+              </button>
+            </div>
+
+            {/* Bouton appel */}
+            <div className="p-4">
+              <a
+                href={`tel:${brandPhone.replace(/\s/g, '')}`}
+                className="block text-center px-4 py-3.5 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400"
+              >
+                📞 Appeler le {brandPhone}
+              </a>
+            </div>
+          </div>
+        </div>
       )}
-
-      {/* Panel — CSS pur, pas de framer-motion */}
-      <div
-        className={`fixed top-0 right-0 h-full w-[85vw] max-w-[360px] bg-zinc-950 border-l border-zinc-800 z-[61] transition-transform duration-300 overflow-y-auto ${
-          open ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800 sticky top-0 bg-zinc-950 z-10">
-          <a
-            href="/"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2"
-          >
-            <img src={brandLogo} alt="" width={28} height={28} className="rounded-lg" />
-            <span className="font-bold text-lg">{brandName}</span>
-          </a>
-          <button
-            onClick={() => setOpen(false)}
-            className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 shrink-0"
-            aria-label="Fermer"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Liens */}
-        <div className="py-2">
-          {LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              onClick={() => setOpen(false)}
-              className="block px-4 py-4 text-white hover:bg-zinc-800 hover:text-emerald-400 transition-colors font-medium border-b border-zinc-900"
-            >
-              {link.label}
-            </a>
-          ))}
-
-          {/* Panier */}
-          <button
-            onClick={() => {
-              setOpen(false)
-              onOpenCart()
-            }}
-            className="w-full text-left px-4 py-4 text-white hover:bg-zinc-800 hover:text-emerald-400 transition-colors font-medium border-b border-zinc-900 flex items-center justify-between"
-          >
-            <span>Panier revendeur</span>
-            {cartCount > 0 ? (
-              <span className="min-w-[22px] h-5 px-1.5 rounded-full bg-emerald-500 text-black text-xs font-bold flex items-center justify-center">
-                {cartCount}
-              </span>
-            ) : (
-              <span className="text-xs text-zinc-600">Vide</span>
-            )}
-          </button>
-        </div>
-
-        {/* Bouton appel */}
-        <div className="p-4">
-          <a
-            href={`tel:${brandPhone.replace(/\s/g, '')}`}
-            className="block text-center px-4 py-3.5 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400 transition-colors"
-          >
-            📞 Appeler le {brandPhone}
-          </a>
-        </div>
-      </div>
     </div>
   )
 }
