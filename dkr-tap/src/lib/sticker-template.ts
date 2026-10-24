@@ -22,13 +22,15 @@
  * pour rester cohérent avec ce que voit l'admin.
  */
 
-export type Network = 'google' | 'tiktok' | 'instagram' | null
+export type Network = 'google' | 'tiktok' | 'instagram' | 'whatsapp' | 'youtube' | 'facebook' | 'snapchat' | null
 
 type NetworkConfig = {
   logoPath: string
   action: string
-  /** Couleur d'accent optionnelle pour le haut du sticker */
+  /** Couleur d'accent pour le haut du sticker */
   accent: string
+  /** Couleur de fond du sticker (gradient) */
+  bgGradient?: string
 }
 
 export const NETWORKS: Record<Exclude<Network, null>, NetworkConfig> = {
@@ -36,16 +38,43 @@ export const NETWORKS: Record<Exclude<Network, null>, NetworkConfig> = {
     logoPath: '/network-google.svg',
     action: 'Laissez-nous 5 étoiles ! ⭐',
     accent: '#4285F4',
+    bgGradient: 'linear-gradient(135deg, #4285F4 0%, #0d47a1 100%)',
   },
   tiktok: {
     logoPath: '/network-tiktok.svg',
-    action: 'Donne de la force, abonne-toi ! 🚀',
+    action: 'Abonne-toi pour plus de vidéos ! 🚀',
     accent: '#FE2C55',
+    bgGradient: 'linear-gradient(135deg, #000000 0%, #25F4EE 50%, #FE2C55 100%)',
   },
   instagram: {
     logoPath: '/network-instagram.svg',
-    action: 'Donne de la force, abonne-toi ! 🚀',
+    action: 'Suivez-nous sur Instagram ! 📸',
     accent: '#d6249f',
+    bgGradient: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #d6299f 50%, #833ab4 75%, #515bd4 100%)',
+  },
+  whatsapp: {
+    logoPath: '/network-whatsapp.svg',
+    action: 'Contactez-nous directement ! 📲',
+    accent: '#25D366',
+    bgGradient: 'linear-gradient(135deg, #25D366 0%, #075e54 100%)',
+  },
+  youtube: {
+    logoPath: '/network-youtube.svg',
+    action: 'Abonnez-vous à notre chaîne ! ▶️',
+    accent: '#FF0000',
+    bgGradient: 'linear-gradient(135deg, #FF0000 0%, #cc0000 100%)',
+  },
+  facebook: {
+    logoPath: '/network-facebook.svg',
+    action: 'Aimez notre page Facebook ! 👍',
+    accent: '#1877F2',
+    bgGradient: 'linear-gradient(135deg, #1877F2 0%, #0a42c2 100%)',
+  },
+  snapchat: {
+    logoPath: '/network-snapchat.svg',
+    action: 'Ajoutez-nous sur Snapchat ! 👻',
+    accent: '#FFFC00',
+    bgGradient: 'linear-gradient(135deg, #FFFC00 0%, #f5d800 100%)',
   },
 }
 
@@ -56,9 +85,13 @@ export const NETWORKS: Record<Exclude<Network, null>, NetworkConfig> = {
 export function detectNetwork(targetUrl: string | null): Network {
   if (!targetUrl) return null
   const u = targetUrl.toLowerCase()
-  if (u.includes('google.') || u.includes('search.google')) return 'google'
+  if (u.includes('google.') || u.includes('search.google') || u.includes('g.page')) return 'google'
   if (u.includes('tiktok.')) return 'tiktok'
   if (u.includes('instagram.')) return 'instagram'
+  if (u.includes('wa.me') || u.includes('whatsapp.')) return 'whatsapp'
+  if (u.includes('youtube.') || u.includes('youtu.be')) return 'youtube'
+  if (u.includes('facebook.') || u.includes('fb.com')) return 'facebook'
+  if (u.includes('snapchat.')) return 'snapchat'
   return null
 }
 
@@ -74,13 +107,17 @@ export function detectNetwork(targetUrl: string | null): Network {
  */
 export function getEffectiveNetwork(
   targetUrl: string | null,
-  customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
+  customNetwork?: 'google' | 'tiktok' | 'instagram' | 'whatsapp' | 'youtube' | 'facebook' | 'snapchat' | 'none' | null
 ): Network {
   if (customNetwork === 'none') return null
   if (
     customNetwork === 'google' ||
     customNetwork === 'tiktok' ||
-    customNetwork === 'instagram'
+    customNetwork === 'instagram' ||
+    customNetwork === 'whatsapp' ||
+    customNetwork === 'youtube' ||
+    customNetwork === 'facebook' ||
+    customNetwork === 'snapchat'
   ) {
     return customNetwork
   }

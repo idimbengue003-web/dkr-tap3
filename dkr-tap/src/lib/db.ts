@@ -44,9 +44,9 @@ export type Sticker = {
   /** Texte d'action personnalisé affiché en haut du sticker.
    *  Si null → utilise le texte par défaut du réseau détecté (ou "Scannez ce QR code"). */
   customActionText?: string | null
-  /** Réseau forcé manuellement ('google' | 'tiktok' | 'instagram' | 'none').
+  /** Réseau forcé manuellement ('google' | 'tiktok' | 'instagram' | 'whatsapp' | 'youtube' | 'facebook' | 'snapchat' | 'none').
    *  Si null ou absent → auto-détecté depuis l'URL cible. */
-  customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
+  customNetwork?: 'google' | 'tiktok' | 'instagram' | 'whatsapp' | 'youtube' | 'facebook' | 'snapchat' | 'none' | null
   /** Position du QR code sur l'image uploadée, en pourcentage (0-1).
    *  Coordonnées du CENTRE du QR par rapport aux dimensions de l'image.
    *  Default: { x: 0.85, y: 0.85 } (bas-droite). */

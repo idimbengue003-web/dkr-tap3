@@ -70,7 +70,7 @@ type Sticker = {
   createdAt: string
   updatedAt: string
   customActionText?: string | null
-  customNetwork?: 'google' | 'tiktok' | 'instagram' | 'none' | null
+  customNetwork?: 'google' | 'tiktok' | 'instagram' | 'whatsapp' | 'youtube' | 'facebook' | 'snapchat' | 'none' | null
   /** Position du QR code sur l'image (centrage en % de 0 à 1).
    *  Default: { x: 0.85, y: 0.85 } (bas-droite). */
   qrPosition?: { x: number; y: number }
@@ -91,7 +91,7 @@ type StickerForm = {
   slug: string
   active: boolean
   customActionText: string
-  customNetwork: 'auto' | 'google' | 'tiktok' | 'instagram' | 'none'
+  customNetwork: 'auto' | 'google' | 'tiktok' | 'instagram' | 'whatsapp' | 'youtube' | 'facebook' | 'snapchat' | 'none'
 }
 
 const EMPTY_FORM: StickerForm = {
@@ -1482,10 +1482,14 @@ export default function Home() {
                 <option value="auto">
                   Auto-détecté depuis l&apos;URL{form.targetUrl ? ` (${detectNetwork(form.targetUrl) || 'aucun réseau détecté'})` : ''}
                 </option>
-                <option value="google">Google (logo G + texte par défaut)</option>
-                <option value="tiktok">TikTok (logo note + texte par défaut)</option>
-                <option value="instagram">Instagram (logo caméra + texte par défaut)</option>
-                <option value="none">Aucun logo (sticker générique)</option>
+                <option value="google">⭐ Google (avis 5 étoiles)</option>
+                <option value="instagram">📸 Instagram (followers)</option>
+                <option value="tiktok">🎵 TikTok (abonnés vidéos)</option>
+                <option value="whatsapp">📲 WhatsApp (chat direct)</option>
+                <option value="youtube">▶️ YouTube (abonnés chaîne)</option>
+                <option value="facebook">👥 Facebook (fans page)</option>
+                <option value="snapchat">👻 Snapchat (ajout snap)</option>
+                <option value="none">🚫 Aucun logo (sticker générique)</option>
               </select>
               <p className="text-xs text-zinc-500">
                 Force le logo affiché en haut du sticker. « Auto » détecte depuis l&apos;URL cible.

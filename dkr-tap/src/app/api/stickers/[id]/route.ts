@@ -77,7 +77,7 @@ export async function PUT(
     }
 
     if (customNetwork !== undefined) {
-      const validNetworks = ['google', 'tiktok', 'instagram', 'none']
+      const validNetworks = ['google', 'tiktok', 'instagram', 'whatsapp', 'youtube', 'facebook', 'snapchat', 'none']
       data.customNetwork =
         typeof customNetwork === 'string' &&
         validNetworks.includes(customNetwork)
