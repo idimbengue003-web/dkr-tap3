@@ -232,6 +232,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'configured' | 'blank'>('all')
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
 
   // Auth state
   type AuthState =
@@ -447,6 +448,28 @@ export default function Home() {
     }
   }
 
+  // Extraire la catégorie d'un sticker depuis son label
+  // Les stickers créés depuis commandes ont un label comme "Instagram #1 (cmd ord_xxx)"
+  function getStickerCategory(s: Sticker): string {
+    if (!s.label) return 'Autre'
+    const lower = s.label.toLowerCase()
+    if (lower.includes('instagram')) return 'Instagram'
+    if (lower.includes('tiktok')) return 'TikTok'
+    if (lower.includes('google')) return 'Google Reviews'
+    if (lower.includes('whatsapp')) return 'WhatsApp'
+    if (lower.includes('youtube')) return 'YouTube'
+    if (lower.includes('facebook')) return 'Facebook'
+    if (lower.includes('snapchat') || lower.includes('snap')) return 'Snapchat'
+    if (lower.includes('personnalis')) return 'Personnalisé'
+    return 'Autre'
+  }
+
+  // Liste des catégories uniques (pour le filtre)
+  const stickerCategories = useMemo(() => {
+    const cats = new Set(stickers.map(getStickerCategory))
+    return ['all', ...Array.from(cats).sort()]
+  }, [stickers])
+
   // Filtrer la liste
   const filtered = useMemo(() => {
     return stickers.filter((s) => {
@@ -461,9 +484,13 @@ export default function Home() {
         (filter === 'configured' && !!s.targetUrl) ||
         (filter === 'blank' && !s.targetUrl)
 
-      return matchesSearch && matchesFilter
+      const matchesCategory =
+        categoryFilter === 'all' ||
+        getStickerCategory(s) === categoryFilter
+
+      return matchesSearch && matchesFilter && matchesCategory
     })
-  }, [stickers, search, filter])
+  }, [stickers, search, filter, categoryFilter])
 
   // Stats
   const stats = useMemo(
@@ -1258,6 +1285,20 @@ export default function Home() {
               className="pl-9 bg-white"
             />
           </div>
+
+          {/* Filtre par catégorie */}
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-zinc-200 bg-white text-sm font-medium text-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          >
+            {stickerCategories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat === 'all' ? '📋 Toutes catégories' : cat}
+              </option>
+            ))}
+          </select>
+
           <div className="flex gap-1.5 bg-white rounded-lg border border-zinc-200 p-1">
             <FilterButton
               active={filter === 'all'}
@@ -1304,6 +1345,7 @@ export default function Home() {
                     <StickerRow
                       key={s.id}
                       sticker={s}
+                      category={getStickerCategory(s)}
                       onEdit={() => openEdit(s)}
                       onDelete={() => setDeleteId(s.id)}
                       onQr={() => openQr(s)}
@@ -3237,6 +3279,7 @@ function StickerRow({
   onOpenTarget,
   onDuplicate,
   publicUrl,
+  category,
 }: {
   sticker: Sticker
   onEdit: () => void
@@ -3246,8 +3289,23 @@ function StickerRow({
   onOpenTarget: () => void
   onDuplicate: () => void
   publicUrl: string
+  category: string
 }) {
   const [showUrl, setShowUrl] = useState(false)
+
+  // Couleur du badge selon la catégorie
+  const catColors: Record<string, string> = {
+    'Instagram': 'bg-pink-100 text-pink-700 border-pink-300',
+    'TikTok': 'bg-red-100 text-red-700 border-red-300',
+    'Google Reviews': 'bg-blue-100 text-blue-700 border-blue-300',
+    'WhatsApp': 'bg-green-100 text-green-700 border-green-300',
+    'YouTube': 'bg-red-100 text-red-700 border-red-300',
+    'Facebook': 'bg-blue-100 text-blue-700 border-blue-300',
+    'Snapchat': 'bg-yellow-100 text-yellow-700 border-yellow-300',
+    'Personnalisé': 'bg-purple-100 text-purple-700 border-purple-300',
+    'Autre': 'bg-zinc-100 text-zinc-600 border-zinc-300',
+  }
+  const catColor = catColors[category] || catColors['Autre']
 
   return (
     <div className="p-4 hover:bg-zinc-50 transition-colors">
@@ -3255,6 +3313,9 @@ function StickerRow({
         {/* Identité */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
+            <Badge variant="outline" className={`text-[10px] ${catColor}`}>
+              {category}
+            </Badge>
             <code className="text-sm font-mono font-semibold text-zinc-900">
               {sticker.slug}
             </code>
