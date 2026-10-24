@@ -68,7 +68,7 @@ export async function GET(
  * Body JSON : { image: "data:image/...;base64,..." }
  *
  * Limites :
- *   - Taille max : 500 KB (après base64 encoding)
+ *   - Taille max : 2 MB (après base64 encoding)
  *   - Formats acceptés : image/png, image/jpeg, image/webp
  *
  * Réponses :
@@ -122,8 +122,8 @@ export async function POST(
 
   const [, , , base64Data] = match
 
-  // Limite de 500 KB après base64 (≈ 375 KB de données binaires)
-  const MAX_BASE64_SIZE = 500 * 1024
+  // Limite de 2 MB après base64 (≈ 1.5 MB de données binaires)
+  const MAX_BASE64_SIZE = 2 * 1024 * 1024
   if (base64Data.length > MAX_BASE64_SIZE) {
     return NextResponse.json(
       {

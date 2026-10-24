@@ -60,8 +60,8 @@ export async function POST(
   if (!match) {
     return NextResponse.json({ error: 'Format invalide (PNG/JPG/WebP requis)' }, { status: 400 })
   }
-  if (match[2].length > 500 * 1024) {
-    return NextResponse.json({ error: 'Image trop volumineuse (max 500KB)' }, { status: 400 })
+  if (match[2].length > 2 * 1024 * 1024) {
+    return NextResponse.json({ error: 'Image trop volumineuse (max 2MB)' }, { status: 400 })
   }
   try {
     await db.setModelPhoto(slot, dataUrl)

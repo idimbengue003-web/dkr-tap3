@@ -156,7 +156,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
  */
 async function fileToDataUrl(
   file: File,
-  maxSize = 1024
+  maxSize = 2048
 ): Promise<{ dataUrl: string; contentType: string; width: number; height: number }> {
   // Vérifier le type
   if (!file.type.startsWith('image/')) {
@@ -3155,7 +3155,7 @@ function ModelPhotosSection() {
 
       let w = img.naturalWidth
       let h = img.naturalHeight
-      const maxSize = 1024
+      const maxSize = 2048
       if (Math.max(w, h) > maxSize) {
         const ratio = maxSize / Math.max(w, h)
         w = Math.round(w * ratio)
