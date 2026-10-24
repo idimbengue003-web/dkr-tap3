@@ -3339,6 +3339,23 @@ function StickerRow({
   return (
     <div className="p-4 hover:bg-zinc-50 transition-colors">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        {/* Aperçu QR stylisé (mini) */}
+        <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-zinc-200 bg-white flex items-center justify-center">
+          <BrandedQR
+            data={publicUrl}
+            network={(() => {
+              const net = getEffectiveNetwork(sticker.targetUrl, sticker.customNetwork ?? null)
+              return net
+            })()}
+            size={48}
+            logoUrl={(() => {
+              const net = getEffectiveNetwork(sticker.targetUrl, sticker.customNetwork ?? null)
+              if (!net) return undefined
+              return NETWORK_LOGO_PATHS[net]
+            })()}
+          />
+        </div>
+
         {/* Identité */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
