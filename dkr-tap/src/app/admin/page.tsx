@@ -1940,11 +1940,19 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Scanner QR code (caméra) */}
+      {/* Modal Scanner QR code (caméra + quick edit) */}
       <ScannerModal
         open={scannerOpen}
         onOpenChange={setScannerOpen}
         onSlugScanned={handleSlugScanned}
+        stickers={stickers.map((s) => ({
+          id: s.id,
+          slug: s.slug,
+          label: s.label,
+          targetUrl: s.targetUrl,
+          active: s.active,
+          scanCount: s.scanCount,
+        }))}
       />
 
       {/* Bouton flottant Assistant IA */}
