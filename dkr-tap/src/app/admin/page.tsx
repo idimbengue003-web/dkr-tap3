@@ -49,6 +49,7 @@ import {
   LogOut,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import { BrandedQR, NETWORK_LOGO_PATHS } from '@/components/branded-qr'
 import { ScannerModal } from '@/components/scanner/scanner-modal'
 import { AIAssistantModal } from '@/components/admin/ai-assistant-modal'
 import { OrdersSection } from '@/components/admin/orders-section'
@@ -1761,6 +1762,30 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
+              {/* Aperçu QR stylisé (branded) — points ronds + couleurs réseau */}
+              {qrSticker && (
+                <div className="mt-3 w-full p-3 rounded-lg border border-zinc-200 bg-zinc-50">
+                  <p className="text-[10px] text-zinc-600 font-semibold uppercase tracking-wider mb-2 text-center">
+                    Aperçu QR stylisé {(() => {
+                      const net = getEffectiveNetwork(qrSticker.targetUrl, form.customNetwork === 'auto' ? null : form.customNetwork as any)
+                      return net ? `(${net})` : '(générique)'
+                    })()}
+                  </p>
+                  <div className="flex justify-center">
+                    <BrandedQR
+                      data={getPublicUrl(qrSticker.slug)}
+                      network={getEffectiveNetwork(qrSticker.targetUrl, form.customNetwork === 'auto' ? null : form.customNetwork as any)}
+                      size={180}
+                      logoUrl={(() => {
+                        const net = getEffectiveNetwork(qrSticker.targetUrl, form.customNetwork === 'auto' ? null : form.customNetwork as any)
+                        if (!net) return undefined
+                        return NETWORK_LOGO_PATHS[net]
+                      })()}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Boutons upload / supprimer */}
               <div className="mt-3 w-full">
