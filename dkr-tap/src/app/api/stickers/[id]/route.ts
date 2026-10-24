@@ -52,8 +52,13 @@ export async function PUT(
 
     if (targetUrl !== undefined) {
       if (typeof targetUrl === 'string' && targetUrl.trim()) {
+        // Auto-ajouter https:// si l'utilisateur n'a pas mis de protocole
+        let url = targetUrl.trim()
+        if (!url.match(/^https?:\/\//)) {
+          url = `https://${url}`
+        }
         try {
-          data.targetUrl = new URL(targetUrl.trim()).toString()
+          data.targetUrl = new URL(url).toString()
         } catch {
           return NextResponse.json(
             { error: 'URL cible invalide' },

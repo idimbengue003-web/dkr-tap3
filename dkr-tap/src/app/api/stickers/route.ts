@@ -44,8 +44,13 @@ export async function POST(request: NextRequest) {
     // Valider targetUrl si fournie
     let finalTargetUrl: string | null = null
     if (typeof targetUrl === 'string' && targetUrl.trim()) {
+      let url = targetUrl.trim()
+      // Auto-ajouter https:// si l'utilisateur n'a pas mis de protocole
+      if (!url.match(/^https?:\/\//)) {
+        url = `https://${url}`
+      }
       try {
-        finalTargetUrl = new URL(targetUrl.trim()).toString()
+        finalTargetUrl = new URL(url).toString()
       } catch {
         return NextResponse.json(
           { error: 'URL cible invalide' },
@@ -55,10 +60,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Valider customNetwork (doit être une des valeurs acceptées)
-    const validNetworks = ['google', 'tiktok', 'instagram', 'none']
+    const validNetworks = ['google', 'tiktok', 'instagram', 'whatsapp', 'youtube', 'facebook', 'snapchat', 'none']
     const finalCustomNetwork =
       typeof customNetwork === 'string' && validNetworks.includes(customNetwork)
-        ? (customNetwork as 'google' | 'tiktok' | 'instagram' | 'none')
+        ? (customNetwork as any)
         : null
 
     // Valider qrPosition (objet { x, y } entre 0 et 1)
