@@ -179,7 +179,7 @@ export default async function LandingPage() {
           <div className="text-center mb-12">
             <p className="text-emerald-400 text-sm font-bold uppercase tracking-wider mb-2">Ils nous font confiance</p>
             <h2 className="text-2xl sm:text-4xl font-bold mb-2">
-              Déjà adopté par des commerçants dakaroi
+              Déjà adopté par des commerçants dakarois
             </h2>
             <p className="text-zinc-400 max-w-2xl mx-auto">
               Salons de coiffure, boutiques de prêt-à-porter, restaurants, cafés, marchands ambulants... ils ont choisi DKR TAP pour grossir leur audience.
