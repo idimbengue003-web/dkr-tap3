@@ -1,7 +1,7 @@
 import { Navbar } from '@/components/navbar'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
-const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.png'
+const BRAND_LOGO_URL = "/dkrtap-logo.png"
 const BRAND_PHONE = process.env.NEXT_PUBLIC_BRAND_PHONE || '78 927 12 96'
 
 export const metadata = {
@@ -27,7 +27,7 @@ export default function MentionsLegalesPage() {
             Statut : Auto-entrepreneur<br />
             NINE : à compléter après inscription sur guichetunique.sn<br />
             Téléphone : {BRAND_PHONE}<br />
-            Email : {BRAND_PHONE.replace(/\s/g, '')}@gmail.com (à personnaliser)<br />
+            Email : dkrtap@gmail.com<br />
             Adresse : Dakar, Sénégal
           </p>
         </section>
@@ -96,7 +96,7 @@ export default function MentionsLegalesPage() {
         <section>
           <h2 className="text-lg font-bold text-white mb-2">9. Contact</h2>
           <p>
-            Pour toute question relative aux mentions légales : {BRAND_PHONE.replace(/\s/g, '')}@gmail.com (à personnaliser) ou {BRAND_PHONE}.
+            Pour toute question relative aux mentions légales : dkrtap@gmail.com ou {BRAND_PHONE}.
           </p>
         </section>
 

@@ -38,10 +38,7 @@ function getBrandName(): string {
 }
 
 function getBrandLogoUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_BRAND_LOGO_URL?.trim() ||
-    '/dkrtap-logo.png'
-  )
+  return '/dkrtap-logo.png'
 }
 
 function getBrandPhone(): string {

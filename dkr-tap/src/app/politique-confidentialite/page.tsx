@@ -1,7 +1,7 @@
 import { Navbar } from '@/components/navbar'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
-const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.png'
+const BRAND_LOGO_URL = "/dkrtap-logo.png"
 const BRAND_PHONE = process.env.NEXT_PUBLIC_BRAND_PHONE || '78 927 12 96'
 
 export const metadata = {
@@ -22,7 +22,7 @@ export default function PolitiqueConfidentialitePage() {
         <section>
           <h2 className="text-lg font-bold text-white mb-2">1. Responsable du traitement</h2>
           <p>
-            Le responsable du traitement des données personnelles est {BRAND_NAME}, basé à Dakar, Sénégal. Contact : {BRAND_PHONE} ou {BRAND_PHONE.replace(/\s/g, '')}@gmail.com (à personnaliser).
+            Le responsable du traitement des données personnelles est {BRAND_NAME}, basé à Dakar, Sénégal. Contact : {BRAND_PHONE} ou dkrtap@gmail.com.
           </p>
         </section>
 

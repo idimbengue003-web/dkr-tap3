@@ -3,7 +3,7 @@ import { Navbar } from '@/components/navbar'
 import { ChevronDown } from 'lucide-react'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
-const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.png'
+const BRAND_LOGO_URL = "/dkrtap-logo.png"
 const BRAND_PHONE = process.env.NEXT_PUBLIC_BRAND_PHONE || '78 927 12 96'
 
 export const metadata = {

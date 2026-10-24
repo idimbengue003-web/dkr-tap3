@@ -61,6 +61,7 @@ export default function RootLayout({
     "contactPoint": {
       "@type": "ContactPoint",
       "telephone": "+221789271296",
+      "email": "dkrtap@gmail.com",
       "contactType": "customer service",
       "availableLanguage": ["French"]
     },

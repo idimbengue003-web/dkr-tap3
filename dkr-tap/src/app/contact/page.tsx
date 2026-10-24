@@ -5,7 +5,7 @@ import { Navbar } from '@/components/navbar'
 import { Phone, Mail, MapPin, Send, Loader2, Check } from 'lucide-react'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
-const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.png'
+const BRAND_LOGO_URL = "/dkrtap-logo.png"
 const BRAND_PHONE = process.env.NEXT_PUBLIC_BRAND_PHONE || '78 927 12 96'
 
 export default function ContactPage() {
@@ -55,9 +55,9 @@ export default function ContactPage() {
             <p className="font-semibold">Écrire un message</p>
           </a>
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-            <MapPin size={24} className="text-emerald-400 mb-2" />
-            <p className="text-xs text-zinc-500 uppercase tracking-wider">Adresse</p>
-            <p className="font-semibold">Dakar, Sénégal</p>
+            <Mail size={24} className="text-emerald-400 mb-2" />
+            <p className="text-xs text-zinc-500 uppercase tracking-wider">Email</p>
+            <a href="mailto:dkrtap@gmail.com" className="font-semibold text-white hover:text-emerald-400">dkrtap@gmail.com</a>
           </div>
         </div>
 

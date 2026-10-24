@@ -1,7 +1,7 @@
 import { Navbar } from '@/components/navbar'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
-const BRAND_LOGO_URL = process.env.NEXT_PUBLIC_BRAND_LOGO_URL || '/dkrtap-logo.png'
+const BRAND_LOGO_URL = "/dkrtap-logo.png"
 const BRAND_PHONE = process.env.NEXT_PUBLIC_BRAND_PHONE || '78 927 12 96'
 
 export const metadata = {
@@ -112,7 +112,7 @@ export default function CGVPage() {
           <h2 className="text-lg font-bold text-white mb-2">Contact</h2>
           <p>
             {BRAND_NAME}<br />
-            Email : {BRAND_PHONE.replace(/\s/g, '')}@gmail.com (à personnaliser)<br />
+            Email : dkrtap@gmail.com<br />
             Téléphone : {BRAND_PHONE}<br />
             Dakar, Sénégal
           </p>
