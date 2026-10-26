@@ -41,8 +41,8 @@ export function ScrollSequence() {
 
   const frames = [
     { src: '/scroll-1.png', alt: 'Sticker sur le mur', opacity: opacity1, scale: scale1 },
-    { src: '/scroll-2.png', alt: 'Scan du QR code', opacity: opacity2, scale: scale2 },
-    { src: '/scroll-5.png', alt: 'Notification recue', opacity: opacity3, scale: scale3 },
+    { src: '/scroll-scan-boutique.jpg', alt: 'Le client scanne le code QR', opacity: opacity2, scale: scale2 },
+    { src: '/scroll-redirect-restaurant.jpg', alt: 'Redirection vers Google Maps', opacity: opacity3, scale: scale3 },
     { src: '/scroll-3.png', alt: 'App reseau social', opacity: opacity4, scale: scale4 },
   ]
 
