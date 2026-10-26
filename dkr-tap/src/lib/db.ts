@@ -672,6 +672,7 @@ export const db = {
       customerPhone: input.customerPhone ?? null,
       customerNote: input.customerNote ?? null,
       type: input.type ?? 'order',
+      promoCode: input.promoCode ?? null,
       createdAt: now,
       updatedAt: now,
       paidAt: null,
@@ -731,12 +732,31 @@ export const db = {
         try {
           await this.addLoyaltyPoints(
             existing.customerName,
-            existing.totalQty, // 1 point par carte achetée
+            existing.totalQty,
             `Commande ${id} (${existing.totalQty} cartes)`,
             id
           )
         } catch (e) {
           console.error('[updateOrderStatus] Erreur ajout points fidélité', id, e)
+        }
+        // 🤝 Bonus parrainage : +1 point au filleul ET au parrain au 1er achat
+        try {
+          const buyerEmail = existing.customerName.toLowerCase().trim()
+          const referrer = await store.get<string>(`referral:${buyerEmail}`)
+          if (referrer) {
+            // Vérifier si c'est le 1er achat payé (cette commande vient juste d'être marquée paid)
+            const userOrders = await this.listOrdersByEmail(existing.customerName)
+            const paidOrders = userOrders.filter((o) => o.status === 'paid' || o.status === 'confirmed')
+            if (paidOrders.length === 1) {
+              // +1 point au filleul (bonus parrainage)
+              await this.addLoyaltyPoints(existing.customerName, 1, `Bonus parrainage (1er achat)`, id)
+              // +1 point au parrain
+              await this.addLoyaltyPoints(referrer, 1, `Bonus parrainage (${buyerEmail} a acheté)`, id)
+              console.log(`[referral] +1 point fidélité → ${referrer} (parrain) + ${buyerEmail} (filleul)`)
+            }
+          }
+        } catch (e) {
+          console.error('[updateOrderStatus] Erreur bonus parrainage fidélité', id, e)
         }
       }
     }
@@ -1020,6 +1040,87 @@ export const db = {
     return txs.filter(Boolean) as LoyaltyTransaction[]
   },
 
+  /* ============ CODES PROMO ============ */
+
+  /** Crée un code promo */
+  async createPromoCode(input: {
+    code: string
+    description: string
+    discountType: 'percentage' | 'fixed'
+    discountValue: number
+    maxUses?: number
+    expiresAt?: string | null
+  }): Promise<PromoCode> {
+    const code = input.code.toUpperCase().trim()
+    const now = new Date().toISOString()
+    const promo: PromoCode = {
+      code,
+      description: input.description,
+      discountType: input.discountType,
+      discountValue: input.discountValue,
+      maxUses: input.maxUses ?? 0,
+      uses: 0,
+      active: true,
+      expiresAt: input.expiresAt ?? null,
+      createdAt: now,
+      updatedAt: now,
+    }
+    await store.set(`promo:${code}`, promo)
+    // Ajouter à la liste
+    const list = (await store.get<string[]>('promo:list')) || []
+    if (!list.includes(code)) {
+      list.unshift(code)
+      await store.set('promo:list', list)
+    }
+    return promo
+  },
+
+  /** Valide un code promo (sans l'utiliser) — retourne le code si valide */
+  async validatePromoCode(code: string): Promise<PromoCode | null> {
+    const upperCode = code.toUpperCase().trim()
+    const promo = await store.get<PromoCode>(`promo:${upperCode}`)
+    if (!promo || !promo.active) return null
+    // Vérifier l'expiration
+    if (promo.expiresAt && new Date(promo.expiresAt) < new Date()) return null
+    // Vérifier le nombre max d'utilisations
+    if (promo.maxUses > 0 && promo.uses >= promo.maxUses) return null
+    return promo
+  },
+
+  /** Utilise un code promo (incrémente le compteur) */
+  async usePromoCode(code: string): Promise<PromoCode | null> {
+    const upperCode = code.toUpperCase().trim()
+    const promo = await store.get<PromoCode>(`promo:${upperCode}`)
+    if (!promo || !promo.active) return null
+    const updated: PromoCode = {
+      ...promo,
+      uses: promo.uses + 1,
+      updatedAt: new Date().toISOString(),
+    }
+    await store.set(`promo:${upperCode}`, updated)
+    return updated
+  },
+
+  /** Liste tous les codes promo */
+  async listPromoCodes(): Promise<PromoCode[]> {
+    const codes = (await store.get<string[]>('promo:list')) || []
+    if (!codes.length) return []
+    const promos = await store.mget<PromoCode>(...codes.map((c) => `promo:${c}`))
+    return promos.filter(Boolean) as PromoCode[]
+  },
+
+  /** Supprime un code promo */
+  async deletePromoCode(code: string): Promise<boolean> {
+    const upperCode = code.toUpperCase().trim()
+    const existing = await store.get<PromoCode>(`promo:${upperCode}`)
+    if (!existing) return false
+    await store.del(`promo:${upperCode}`)
+    const list = (await store.get<string[]>('promo:list')) || []
+    const filtered = list.filter((c) => c !== upperCode)
+    await store.set('promo:list', filtered)
+    return true
+  },
+
   /** Crée les stickers associés à une commande.
    *  Appelée :
    *  - Automatiquement par POST /api/orders avec active=false (cartes visibles
@@ -1151,6 +1252,8 @@ export type Order = {
   customerNote: string | null
   /** Type de commande : 'order' (achat stickers) ou 'recharge' (dépôt sur solde wallet) */
   type?: 'order' | 'recharge'
+  /** Code promo utilisé (si applicable) */
+  promoCode?: string | null
   createdAt: string
   updatedAt: string
   paidAt: string | null
@@ -1167,6 +1270,7 @@ export type OrderInput = {
   customerPhone?: string | null
   customerNote?: string | null
   type?: 'order' | 'recharge'
+  promoCode?: string | null
 }
 
 /* ---------------- Types Wallet ---------------- */
@@ -1207,9 +1311,9 @@ export type UserProfile = {
 
 export type LoyaltyAccount = {
   ownerEmail: string
-  points: number // points disponibles
-  totalEarned: number // total points gagnés (historique)
-  totalRedeemed: number // total points échangés
+  points: number
+  totalEarned: number
+  totalRedeemed: number
   createdAt: string
   updatedAt: string
 }
@@ -1218,8 +1322,8 @@ export type LoyaltyTransaction = {
   id: string
   ownerEmail: string
   type: 'earn' | 'redeem'
-  points: number // positif pour earn, négatif pour redeem
-  reason: string // ex: "Commande ord_xxx (12 cartes)" ou "Récompense: 1 sticker gratuit"
+  points: number
+  reason: string
   orderId?: string | null
   createdAt: string
 }
@@ -1259,4 +1363,19 @@ export const LOYALTY_REWARDS: LoyaltyReward[] = [
     stickerCount: 25,
   },
 ]
+
+/* ---------------- Types Codes Promo ---------------- */
+
+export type PromoCode = {
+  code: string // ex: "BIENVENUE10" (uppercase)
+  description: string // ex: "10% de remise pour les nouveaux clients"
+  discountType: 'percentage' | 'fixed'
+  discountValue: number // 10 = 10% ou 1000 = 1000 FCFA
+  maxUses: number // 0 = illimité
+  uses: number // nombre d'utilisations
+  active: boolean
+  expiresAt: string | null // ISO date ou null
+  createdAt: string
+  updatedAt: string
+}
 

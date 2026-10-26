@@ -60,6 +60,28 @@ export async function POST(request: NextRequest) {
       customerName: typeof body.customerName === 'string' && body.customerName.trim() ? body.customerName.trim() : null,
       customerPhone: typeof body.customerPhone === 'string' && body.customerPhone.trim() ? body.customerPhone.trim() : null,
       customerNote: typeof body.customerNote === 'string' && body.customerNote.trim() ? body.customerNote.trim() : null,
+      promoCode: typeof body.promoCode === 'string' && body.promoCode.trim() ? body.promoCode.trim() : null,
+    }
+
+    // 🎟️ Si un code promo est fourni, le valider et appliquer la réduction
+    if (input.promoCode) {
+      const promo = await db.validatePromoCode(input.promoCode)
+      if (!promo) {
+        return NextResponse.json({ error: 'Code promo invalide ou expiré' }, { status: 400 })
+      }
+      // Calculer le montant de la remise
+      let discountAmount = 0
+      if (promo.discountType === 'percentage') {
+        discountAmount = Math.round(input.totalAfter * (promo.discountValue / 100))
+      } else {
+        discountAmount = Math.min(promo.discountValue, input.totalAfter)
+      }
+      // Appliquer la remise
+      input.totalBefore = input.totalAfter // le totalBefore reste le prix avant remise promo
+      input.totalAfter = Math.max(0, input.totalAfter - discountAmount)
+      // Utiliser le code (incrémenter le compteur)
+      await db.usePromoCode(input.promoCode)
+      console.log(`[orders] 🎟️ Code promo ${input.promoCode} utilisé → -${discountAmount} FCFA`)
     }
 
     const order = await db.createOrder(input)

@@ -84,6 +84,11 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
   // Solde wallet de l'utilisateur connecté
   const [walletBalance, setWalletBalance] = useState(0)
   const [payingFromWallet, setPayingFromWallet] = useState(false)
+  // Code promo
+  const [promoInput, setPromoInput] = useState('')
+  const [promoData, setPromoData] = useState<{ code: string; discountType: string; discountValue: number } | null>(null)
+  const [promoValidating, setPromoValidating] = useState(false)
+  const [promoError, setPromoError] = useState('')
 
   // Pré-remplir le nom + téléphone avec le profil de l'utilisateur connecté
   useEffect(() => {
@@ -348,7 +353,52 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
   }
 
   const clearCart = () => {
-    if (confirm('Vider le panier ?')) setCart({})
+    if (confirm('Vider le panier ?')) {
+      setCart({})
+      setPromoData(null)
+      setPromoInput('')
+      setPromoError('')
+    }
+  }
+
+  // Calculer la remise promo
+  const promoDiscount = useMemo(() => {
+    if (!promoData) return 0
+    if (promoData.discountType === 'percentage') {
+      return Math.round(totalAfter * (promoData.discountValue / 100))
+    }
+    return Math.min(promoData.discountValue, totalAfter)
+  }, [promoData, totalAfter])
+
+  const finalTotal = totalAfter - promoDiscount
+
+  // Valider un code promo
+  const validatePromo = async () => {
+    if (!promoInput.trim() || promoValidating) return
+    setPromoValidating(true)
+    setPromoError('')
+    setPromoData(null)
+    try {
+      const res = await fetch('/api/promo-codes/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: promoInput.trim() }),
+      })
+      const data = await res.json()
+      if (data.valid) {
+        setPromoData({
+          code: data.code,
+          discountType: data.discountType,
+          discountValue: data.discountValue,
+        })
+      } else {
+        setPromoError(data.error || 'Code invalide')
+      }
+    } catch {
+      setPromoError('Erreur de validation')
+    } finally {
+      setPromoValidating(false)
+    }
   }
 
   // Trier les items : modèles d'abord (alpha par catégorie parente), puis catégories seules
@@ -572,14 +622,57 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                         <span className="text-emerald-400">-{(totalBefore - totalAfter).toLocaleString('fr-FR')} FCFA</span>
                       </div>
                     )}
+                    {promoData && promoDiscount > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-emerald-400">Code promo {promoData.code}</span>
+                        <span className="text-emerald-400">-{promoDiscount.toLocaleString('fr-FR')} FCFA</span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-baseline pt-2 border-t border-zinc-800">
                       <span className="font-bold text-white">Total à payer</span>
                       <span className="font-bold text-emerald-400 text-2xl">
-                        {totalAfter.toLocaleString('fr-FR')}
+                        {finalTotal.toLocaleString('fr-FR')}
                         <span className="text-sm font-normal ml-1">FCFA</span>
                       </span>
                     </div>
                   </div>
+
+                  {/* Code promo */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promoInput}
+                      onChange={(e) => { setPromoInput(e.target.value.toUpperCase()); setPromoError(''); setPromoData(null) }}
+                      placeholder="Code promo"
+                      className="flex-1 px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-sm font-mono uppercase placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500"
+                      disabled={!!promoData}
+                    />
+                    {promoData ? (
+                      <button
+                        onClick={() => { setPromoData(null); setPromoInput('') }}
+                        className="px-3 py-2 rounded-lg bg-zinc-800 text-zinc-300 text-xs font-semibold hover:bg-zinc-700"
+                      >
+                        Retirer
+                      </button>
+                    ) : (
+                      <button
+                        onClick={validatePromo}
+                        disabled={promoValidating || !promoInput.trim()}
+                        className="px-3 py-2 rounded-lg bg-emerald-500 text-black text-xs font-semibold hover:bg-emerald-400 disabled:opacity-60"
+                      >
+                        {promoValidating ? '...' : 'Appliquer'}
+                      </button>
+                    )}
+                  </div>
+                  {promoError && <p className="text-xs text-red-400">{promoError}</p>}
+                  {promoData && (
+                    <p className="text-xs text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 size={12} /> Code {promoData.code} appliqué —
+                      {promoData.discountType === 'percentage'
+                        ? ` -${promoData.discountValue}%`
+                        : ` -${promoData.discountValue.toLocaleString('fr-FR')} FCFA`}
+                    </p>
+                  )}
 
                   {/* Infos revendeur (optionnel mais recommandé) */}
                   <div className="grid grid-cols-2 gap-2">
@@ -613,20 +706,20 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                           </p>
                         </div>
                       </div>
-                      {walletBalance >= totalAfter ? (
+                      {walletBalance >= finalTotal ? (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500 text-black font-bold">
                           SUFFISANT
                         </span>
                       ) : (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">
-                          MANQUE {(totalAfter - walletBalance).toLocaleString('fr-FR')} FCFA
+                          MANQUE {(finalTotal - walletBalance).toLocaleString('fr-FR')} FCFA
                         </span>
                       )}
                     </div>
                   )}
 
                   {/* 🟢 Bouton 1 : Payer avec mon solde (uniquement si connecté + solde suffisant) */}
-                  {session?.user?.email && walletBalance >= totalAfter && (
+                  {session?.user?.email && walletBalance >= finalTotal && (
                     <button
                       onClick={async () => {
                         if (submittingOrder || payingFromWallet) return
@@ -644,7 +737,7 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                              items: apiItems, totalQty, totalBefore, totalAfter,
+                              items: apiItems, totalQty, totalBefore: totalAfter, totalAfter: finalTotal, promoCode: promoData?.code || null,
                               discountPct, paymentMethod: 'wave',
                               customerName: customerName || session.user.email || null,
                               customerPhone: customerPhone || null,
@@ -691,12 +784,12 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                         ? 'Paiement en cours…'
                         : paymentStatus === 'paid'
                         ? 'Paiement confirmé ! 🎉'
-                        : `Payer ${totalAfter.toLocaleString('fr-FR')} FCFA avec mon solde`}
+                        : `Payer ${finalTotal.toLocaleString('fr-FR')} FCFA avec mon solde`}
                     </button>
                   )}
 
                   {/* 🟡 Bouton 2 : Recharger mon solde (toujours visible — permet d'aller sur /recharger) */}
-                  {(!session?.user?.email || walletBalance < totalAfter) && paymentStatus !== 'paid' && (
+                  {(!session?.user?.email || walletBalance < finalTotal) && paymentStatus !== 'paid' && (
                     <a
                       href="/recharger"
                       target="_blank"
@@ -707,13 +800,13 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                         <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>
                       </svg>
                       {session?.user?.email
-                        ? `Recharger mon solde (manque ${(totalAfter - walletBalance).toLocaleString('fr-FR')} FCFA)`
+                        ? `Recharger mon solde (manque ${(finalTotal - walletBalance).toLocaleString('fr-FR')} FCFA)`
                         : 'Recharger mon solde'}
                     </a>
                   )}
 
                   {/* 🔵 Bouton 3 : Payer directement via Wave (alternative) — masqué si wallet suffit */}
-                  {(!session?.user?.email || walletBalance < totalAfter) && (
+                  {(!session?.user?.email || walletBalance < finalTotal) && (
                     <details className="text-xs text-zinc-500">
                       <summary className="cursor-pointer hover:text-zinc-300 py-1">
                         Ou payer directement via Wave (sans solde)
@@ -734,7 +827,7 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({
-                                items: apiItems, totalQty, totalBefore, totalAfter,
+                                items: apiItems, totalQty, totalBefore: totalAfter, totalAfter: finalTotal, promoCode: promoData?.code || null,
                                 discountPct, paymentMethod: 'wave',
                                 customerName: customerName || null,
                                 customerPhone: customerPhone || null,
@@ -746,7 +839,7 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                             }
                             const order = await res.json()
                             setLastOrderId(order.id)
-                            const waveUrl = buildWaveUrl(totalAfter)
+                            const waveUrl = buildWaveUrl(finalTotal)
                             if (waveUrl !== '#') {
                               window.open(waveUrl, '_blank', 'noopener,noreferrer')
                             }
@@ -764,13 +857,13 @@ export function CartDrawer({ categories, open, onOpenChange }: Props) {
                         <ShoppingBag size={16} />
                         {submittingOrder
                           ? 'Création…'
-                          : `Payer ${totalAfter.toLocaleString('fr-FR')} FCFA avec Wave`}
+                          : `Payer ${finalTotal.toLocaleString('fr-FR')} FCFA avec Wave`}
                       </button>
                     </details>
                   )}
 
                   {/* Statut de vérification du paiement (Wave polling) */}
-                  {lastOrderId && !submittingOrder && paymentStatus === 'idle' && session?.user?.email && walletBalance >= totalAfter && (
+                  {lastOrderId && !submittingOrder && paymentStatus === 'idle' && session?.user?.email && walletBalance >= finalTotal && (
                     <p className="text-xs text-emerald-400 text-center flex items-center justify-center gap-1.5">
                       <CheckCircle2 size={12} />
                       Commande <strong>{lastOrderId}</strong> enregistrée.
