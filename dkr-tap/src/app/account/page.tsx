@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, QrCode, ExternalLink, LogOut, Save, Check, Loader2, Smartphone, User, MapPin, Phone, Home, FileText, Wallet, BarChart3 } from 'lucide-react'
+import { Package, QrCode, ExternalLink, LogOut, Save, Check, Loader2, Smartphone, User, MapPin, Phone, Home, FileText, Wallet, BarChart3, Gift, Sparkles } from 'lucide-react'
 import { Navbar } from '@/components/navbar'
 import { db } from '@/lib/db' // server side only — won't be used here, using fetch instead
 
@@ -107,16 +107,26 @@ export default function AccountPage() {
     unconfiguredStickers: number
     topStickers: Array<{ id: string; slug: string; label: string; scanCount: number; targetUrl: string | null; active: boolean }>
   } | null>(null)
+  const [loyalty, setLoyalty] = useState<{
+    points: number
+    totalEarned: number
+    totalRedeemed: number
+    transactions: Array<{ id: string; type: string; points: number; reason: string; createdAt: string }>
+    rewards: Array<{ id: string; label: string; description: string; pointsCost: number; stickerCount: number }>
+  } | null>(null)
+  const [redeeming, setRedeeming] = useState(false)
+  const [redeemResult, setRedeemResult] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
     if (!session?.user?.email) return
     setLoading(true)
     try {
-      const [ordersRes, stickersRes, profileRes, statsRes] = await Promise.all([
+      const [ordersRes, stickersRes, profileRes, statsRes, loyaltyRes] = await Promise.all([
         fetch('/api/my/orders', { cache: 'no-store' }),
         fetch('/api/my/stickers', { cache: 'no-store' }),
         fetch('/api/my/profile', { cache: 'no-store' }),
         fetch('/api/my/scans-stats', { cache: 'no-store' }),
+        fetch('/api/my/loyalty', { cache: 'no-store' }),
       ])
       if (ordersRes.ok) setOrders(await ordersRes.json())
       if (stickersRes.ok) setStickers(await stickersRes.json())
@@ -132,6 +142,7 @@ export default function AccountPage() {
         })
       }
       if (statsRes.ok) setScanStats(await statsRes.json())
+      if (loyaltyRes.ok) setLoyalty(await loyaltyRes.json())
     } catch (e) {
       console.error('Erreur chargement données', e)
     } finally {
@@ -399,6 +410,115 @@ export default function AccountPage() {
                     )}
                   </div>
                 </section>
+
+                {/* Fidélité — points + récompenses */}
+                {loyalty && (
+                  <section>
+                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                      <Gift size={20} className="text-emerald-400" />
+                      Programme fidélité
+                    </h2>
+
+                    <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-zinc-900 to-zinc-900 p-4 space-y-4">
+                      {/* Solde de points */}
+                      <div className="text-center py-3">
+                        <p className="text-xs text-zinc-400 uppercase tracking-wider mb-1">Vos points</p>
+                        <p className="text-4xl font-bold text-emerald-400">{loyalty.points}</p>
+                        <p className="text-xs text-zinc-500 mt-1">{loyalty.totalEarned} cumulés · {loyalty.totalRedeemed} échangés</p>
+                      </div>
+
+                      {/* Barre progression vers 10 points */}
+                      {loyalty.points < 10 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs text-zinc-400">Progression vers 1 sticker gratuit</span>
+                            <span className="text-sm font-bold text-emerald-400">{loyalty.points}/10</span>
+                          </div>
+                          <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all"
+                              style={{ width: `${(loyalty.points / 10) * 100}%` }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-zinc-500 mt-1">
+                            Plus que {10 - loyalty.points} point{10 - loyalty.points > 1 ? 's' : ''} pour gagner 1 sticker gratuit !
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Récompenses disponibles */}
+                      {loyalty.rewards && loyalty.rewards.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Récompenses</p>
+                          {loyalty.rewards.map((r) => {
+                            const canAfford = loyalty.points >= r.pointsCost
+                            return (
+                              <div
+                                key={r.id}
+                                className={`flex items-center justify-between gap-3 p-3 rounded-lg border transition-colors ${
+                                  canAfford
+                                    ? 'border-emerald-500/40 bg-emerald-500/5'
+                                    : 'border-zinc-800 bg-zinc-900/50 opacity-60'
+                                }`}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-white">{r.label}</p>
+                                  <p className="text-[10px] text-zinc-500">{r.description}</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <p className="text-sm font-bold text-emerald-400">{r.pointsCost} pts</p>
+                                  <button
+                                    disabled={!canAfford || redeeming}
+                                    onClick={async () => {
+                                      if (!canAfford || redeeming) return
+                                      setRedeeming(true)
+                                      setRedeemResult(null)
+                                      try {
+                                        const res = await fetch('/api/my/loyalty/redeem', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ rewardId: r.id }),
+                                        })
+                                        const data = await res.json()
+                                        if (!res.ok) throw new Error(data.error || 'Échec')
+                                        setRedeemResult(`✅ ${data.message}`)
+                                        await loadData()
+                                      } catch (e) {
+                                        setRedeemResult(`❌ ${(e as Error).message}`)
+                                      } finally {
+                                        setRedeeming(false)
+                                        setTimeout(() => setRedeemResult(null), 5000)
+                                      }
+                                    }}
+                                    className={`text-[10px] px-2 py-1 rounded-md font-semibold ${
+                                      canAfford
+                                        ? 'bg-emerald-500 text-black hover:bg-emerald-400'
+                                        : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                                    }`}
+                                  >
+                                    {redeeming ? '...' : canAfford ? 'Échanger' : 'Verrouillé'}
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {/* Message résultat */}
+                      {redeemResult && (
+                        <div className="text-center text-sm font-semibold text-emerald-400 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                          {redeemResult}
+                        </div>
+                      )}
+
+                      {/* Règles */}
+                      <p className="text-[10px] text-zinc-500 text-center">
+                        💡 1 point par carte achetée · 10 points = 1 sticker · 50 points = 12 stickers · 100 points = 25 stickers
+                      </p>
+                    </div>
+                  </section>
+                )}
 
                 {/* Stats de scans */}
                 {scanStats && scanStats.totalStickers > 0 && (

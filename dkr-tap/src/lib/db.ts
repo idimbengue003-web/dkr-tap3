@@ -719,14 +719,25 @@ export const db = {
           (slug) => slug.startsWith(`cmd-${id}-`)
         )
         if (alreadyHasStickers) {
-          // Cas 1 : les stickers existent (créés en inactive) → les activer
           await this.activateStickersForOrder(id)
         } else {
-          // Cas 2 : les stickers n'existent pas → les créer en active=true
           await this.createStickersForOrder(id, true)
         }
       } catch (e) {
         console.error('[updateOrderStatus] Erreur activation stickers pour commande', id, e)
+      }
+      // 🎁 Attribution automatique des points de fidélité (1 point/sticker acheté)
+      if (existing.customerName && (existing.type || 'order') === 'order') {
+        try {
+          await this.addLoyaltyPoints(
+            existing.customerName,
+            existing.totalQty, // 1 point par carte achetée
+            `Commande ${id} (${existing.totalQty} cartes)`,
+            id
+          )
+        } catch (e) {
+          console.error('[updateOrderStatus] Erreur ajout points fidélité', id, e)
+        }
       }
     }
     return updated
@@ -901,6 +912,112 @@ export const db = {
     }
     await store.set(`profile:${ownerEmail}`, updated)
     return updated
+  },
+
+  /* ============ FIDÉLITÉ (POINTS) ============ */
+
+  /** Récupère ou crée le compte de fidélité d'un utilisateur */
+  async getLoyalty(email: string): Promise<LoyaltyAccount> {
+    const ownerEmail = email.toLowerCase().trim()
+    const existing = await store.get<LoyaltyAccount>(`loyalty:${ownerEmail}`)
+    if (existing) return existing
+    const now = new Date().toISOString()
+    const account: LoyaltyAccount = {
+      ownerEmail,
+      points: 0,
+      totalEarned: 0,
+      totalRedeemed: 0,
+      createdAt: now,
+      updatedAt: now,
+    }
+    await store.set(`loyalty:${ownerEmail}`, account)
+    return account
+  },
+
+  /** Ajoute des points de fidélité (quand une commande est payée) */
+  async addLoyaltyPoints(email: string, points: number, reason: string, orderId?: string | null): Promise<LoyaltyAccount> {
+    const ownerEmail = email.toLowerCase().trim()
+    const account = await this.getLoyalty(ownerEmail)
+    const updated: LoyaltyAccount = {
+      ...account,
+      points: account.points + points,
+      totalEarned: account.totalEarned + points,
+      updatedAt: new Date().toISOString(),
+    }
+    await store.set(`loyalty:${ownerEmail}`, updated)
+    // Enregistrer la transaction
+    const txId = `ltx_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    const tx: LoyaltyTransaction = {
+      id: txId,
+      ownerEmail,
+      type: 'earn',
+      points,
+      reason,
+      orderId: orderId ?? null,
+      createdAt: new Date().toISOString(),
+    }
+    await store.set(`ltx:${txId}`, tx)
+    const list = (await store.get<string[]>(`ltx:list:${ownerEmail}`)) || []
+    list.unshift(txId)
+    await store.set(`ltx:list:${ownerEmail}`, list)
+    return updated
+  },
+
+  /** Échange des points contre une récompense (crée des stickers gratuits) */
+  async redeemLoyaltyPoints(email: string, pointsCost: number, rewardLabel: string, stickerCount: number): Promise<{ account: LoyaltyAccount; stickers: Sticker[] }> {
+    const ownerEmail = email.toLowerCase().trim()
+    const account = await this.getLoyalty(ownerEmail)
+    if (account.points < pointsCost) {
+      throw new Error(`Points insuffisants (${account.points}/${pointsCost})`)
+    }
+    // Déduire les points
+    const updated: LoyaltyAccount = {
+      ...account,
+      points: account.points - pointsCost,
+      totalRedeemed: account.totalRedeemed + pointsCost,
+      updatedAt: new Date().toISOString(),
+    }
+    await store.set(`loyalty:${ownerEmail}`, updated)
+    // Enregistrer la transaction
+    const txId = `ltx_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    const tx: LoyaltyTransaction = {
+      id: txId,
+      ownerEmail,
+      type: 'redeem',
+      points: -pointsCost,
+      reason: `Récompense: ${rewardLabel} (${stickerCount} stickers)`,
+      createdAt: new Date().toISOString(),
+    }
+    await store.set(`ltx:${txId}`, tx)
+    const list = (await store.get<string[]>(`ltx:list:${ownerEmail}`)) || []
+    list.unshift(txId)
+    await store.set(`ltx:list:${ownerEmail}`, list)
+    // Créer les stickers gratuits (actifs immédiatement)
+    const created: Sticker[] = []
+    for (let i = 0; i < stickerCount; i++) {
+      let slug = `reward-${Date.now().toString(36)}-${i + 1}`
+      if (await this.slugExists(slug)) {
+        slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`
+      }
+      const sticker = await this.createSticker({
+        slug,
+        label: `Sticker gratuit (${rewardLabel}) #${i + 1}`,
+        targetUrl: null,
+        active: true,
+        buyerEmail: ownerEmail,
+      })
+      created.push(sticker)
+    }
+    return { account: updated, stickers: created }
+  },
+
+  /** Liste les transactions de fidélité d'un utilisateur */
+  async listLoyaltyTransactions(email: string): Promise<LoyaltyTransaction[]> {
+    const ownerEmail = email.toLowerCase().trim()
+    const ids = (await store.get<string[]>(`ltx:list:${ownerEmail}`)) || []
+    if (!ids.length) return []
+    const txs = await store.mget<LoyaltyTransaction>(...ids.map((id) => `ltx:${id}`))
+    return txs.filter(Boolean) as LoyaltyTransaction[]
   },
 
   /** Crée les stickers associés à une commande.
@@ -1085,3 +1202,61 @@ export type UserProfile = {
   createdAt: string
   updatedAt: string
 }
+
+/* ---------------- Types Fidélité ---------------- */
+
+export type LoyaltyAccount = {
+  ownerEmail: string
+  points: number // points disponibles
+  totalEarned: number // total points gagnés (historique)
+  totalRedeemed: number // total points échangés
+  createdAt: string
+  updatedAt: string
+}
+
+export type LoyaltyTransaction = {
+  id: string
+  ownerEmail: string
+  type: 'earn' | 'redeem'
+  points: number // positif pour earn, négatif pour redeem
+  reason: string // ex: "Commande ord_xxx (12 cartes)" ou "Récompense: 1 sticker gratuit"
+  orderId?: string | null
+  createdAt: string
+}
+
+export type LoyaltyReward = {
+  id: string
+  label: string
+  description: string
+  pointsCost: number
+  rewardType: 'free_sticker' | 'free_pack_12' | 'free_pack_25'
+  stickerCount: number
+}
+
+export const LOYALTY_REWARDS: LoyaltyReward[] = [
+  {
+    id: 'free_sticker',
+    label: '1 sticker gratuit',
+    description: '1 carte QR supplémentaire (au choix)',
+    pointsCost: 10,
+    rewardType: 'free_sticker',
+    stickerCount: 1,
+  },
+  {
+    id: 'free_pack_12',
+    label: 'Pack Revendeur (12 stickers)',
+    description: '12 cartes QR supplémentaires',
+    pointsCost: 50,
+    rewardType: 'free_pack_12',
+    stickerCount: 12,
+  },
+  {
+    id: 'free_pack_25',
+    label: 'Pack Pro (25 stickers)',
+    description: '25 cartes QR supplémentaires',
+    pointsCost: 100,
+    rewardType: 'free_pack_25',
+    stickerCount: 25,
+  },
+]
+
