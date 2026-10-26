@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, type OrderInput, type OrderItem } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-guard'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
-import { sendOrderCreatedEmail } from '@/lib/email'
+import { sendOrderCreatedEmail, sendAdminNewOrderEmail } from '@/lib/email'
 
 // GET /api/orders — admin only (liste toutes les commandes)
 export async function GET(request: NextRequest) {
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       console.error('[POST /api/orders] Erreur création stickers initiaux pour', order.id, e)
       // Ne pas faire échouer la création de commande pour autant
     }
-    // 📧 Envoi email de confirmation de création de commande
+    // 📧 Email de confirmation de création de commande (au client)
     if (input.customerName && input.customerName.includes('@')) {
       sendOrderCreatedEmail(input.customerName, {
         id: order.id,
@@ -82,6 +82,15 @@ export async function POST(request: NextRequest) {
         items: order.items,
       }).catch((e) => console.error('[email] Erreur envoi order-created:', e))
     }
+    // 📧 Email NOTIFICATION ADMIN (à toi-même)
+    sendAdminNewOrderEmail(
+      order.id,
+      order.totalAfter,
+      order.totalQty,
+      input.customerName || null,
+      input.customerPhone || null,
+      order.items.map((it) => ({ name: it.name, qty: it.qty, unitPrice: it.unitPrice }))
+    ).catch((e) => console.error('[email] Erreur envoi admin notification:', e))
     return NextResponse.json(order, { status: 201 })
   } catch (error) {
     console.error('[POST /api/orders]', error)

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, QrCode, ExternalLink, LogOut, Save, Check, Loader2, Smartphone, User, MapPin, Phone, Home, FileText, Wallet } from 'lucide-react'
+import { Package, QrCode, ExternalLink, LogOut, Save, Check, Loader2, Smartphone, User, MapPin, Phone, Home, FileText, Wallet, BarChart3 } from 'lucide-react'
 import { Navbar } from '@/components/navbar'
 import { db } from '@/lib/db' // server side only — won't be used here, using fetch instead
 
@@ -98,15 +98,25 @@ export default function AccountPage() {
   })
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
+  const [scanStats, setScanStats] = useState<{
+    totalScans: number
+    totalStickers: number
+    activeStickers: number
+    pendingStickers: number
+    configuredStickers: number
+    unconfiguredStickers: number
+    topStickers: Array<{ id: string; slug: string; label: string; scanCount: number; targetUrl: string | null; active: boolean }>
+  } | null>(null)
 
   const loadData = useCallback(async () => {
     if (!session?.user?.email) return
     setLoading(true)
     try {
-      const [ordersRes, stickersRes, profileRes] = await Promise.all([
+      const [ordersRes, stickersRes, profileRes, statsRes] = await Promise.all([
         fetch('/api/my/orders', { cache: 'no-store' }),
         fetch('/api/my/stickers', { cache: 'no-store' }),
         fetch('/api/my/profile', { cache: 'no-store' }),
+        fetch('/api/my/scans-stats', { cache: 'no-store' }),
       ])
       if (ordersRes.ok) setOrders(await ordersRes.json())
       if (stickersRes.ok) setStickers(await stickersRes.json())
@@ -121,6 +131,7 @@ export default function AccountPage() {
           deliveryNote: p.deliveryNote || '',
         })
       }
+      if (statsRes.ok) setScanStats(await statsRes.json())
     } catch (e) {
       console.error('Erreur chargement données', e)
     } finally {
@@ -388,6 +399,66 @@ export default function AccountPage() {
                     )}
                   </div>
                 </section>
+
+                {/* Stats de scans */}
+                {scanStats && scanStats.totalStickers > 0 && (
+                  <section>
+                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                      <BarChart3 size={20} className="text-emerald-400" />
+                      Statistiques de scans
+                    </h2>
+
+                    {/* 4 cartes stats */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 text-center">
+                        <p className="text-2xl font-bold text-emerald-400">{scanStats.totalScans}</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">Total scans</p>
+                      </div>
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 text-center">
+                        <p className="text-2xl font-bold text-white">{scanStats.totalStickers}</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">Cartes QR</p>
+                      </div>
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 text-center">
+                        <p className="text-2xl font-bold text-emerald-400">{scanStats.activeStickers}</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">Actives</p>
+                      </div>
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 text-center">
+                        <p className="text-2xl font-bold text-yellow-400">{scanStats.unconfiguredStickers}</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">À configurer</p>
+                      </div>
+                    </div>
+
+                    {/* Top 5 cartes par scans */}
+                    {scanStats.topStickers.length > 0 && (
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+                        <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3">Top 5 cartes les plus scannées</p>
+                        <div className="space-y-2">
+                          {scanStats.topStickers.map((s, i) => {
+                            const maxScans = scanStats.topStickers[0]?.scanCount || 1
+                            const pct = maxScans > 0 ? (s.scanCount / maxScans) * 100 : 0
+                            return (
+                              <div key={s.id} className="flex items-center gap-3">
+                                <span className="text-xs font-bold text-zinc-500 w-4 shrink-0">{i + 1}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-2 mb-1">
+                                    <span className="text-xs text-zinc-300 truncate">{s.label || s.slug}</span>
+                                    <span className="text-xs font-bold text-emerald-400 shrink-0">{s.scanCount}</span>
+                                  </div>
+                                  <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
+                                    <div
+                                      className="h-full bg-emerald-500 rounded-full transition-all"
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
 
                 {/* Commandes */}
                 <section>

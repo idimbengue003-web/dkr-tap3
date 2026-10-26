@@ -307,3 +307,59 @@ export async function sendWalletRechargedEmail(to: string, amount: number, newBa
 
   return sendEmail(to, `💸 Solde rechargé +${formatFCFA(amount)}`, emailShell(content, 'Solde rechargé'))
 }
+
+/** Email NOTIFICATION ADMIN — envoyé à toi quand une nouvelle commande est reçue */
+export async function sendAdminNewOrderEmail(
+  orderId: string,
+  totalAfter: number,
+  totalQty: number,
+  customerName: string | null,
+  customerPhone: string | null,
+  items: Array<{ name: string; qty: number; unitPrice: number }>
+): Promise<boolean> {
+  const itemsHtml = items.map((it) => `
+    <tr>
+      <td style="padding:8px 0;border-bottom:1px solid #27272a;">
+        <strong style="color:#e4e4e7;">${it.name}</strong>
+      </td>
+      <td style="padding:8px 0;border-bottom:1px solid #27272a;text-align:right;color:#a1a1aa;">
+        ${it.qty} × ${formatFCFA(it.unitPrice)}
+      </td>
+    </tr>
+  `).join('')
+
+  const content = `
+    <h2 style="margin:0 0 16px;color:#10b981;font-size:20px;font-weight:700;">🔔 Nouvelle commande reçue !</h2>
+    
+    <div style="background-color:#0a0a0a;border:1px solid #10b981;border-radius:8px;padding:16px 20px;margin:16px 0;">
+      <p style="margin:0 0 4px;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;">Commande</p>
+      <p style="margin:0 0 12px;color:#10b981;font-size:18px;font-weight:700;font-family:monospace;">${orderId}</p>
+      
+      <table width="100%" cellpadding="0" cellspacing="0">
+        ${itemsHtml}
+      </table>
+      
+      <div style="padding-top:12px;margin-top:8px;border-top:2px solid #27272a;display:flex;justify-content:space-between;align-items:baseline;">
+        <strong style="color:#e4e4e7;">Total</strong>
+        <span style="color:#10b981;font-size:20px;font-weight:700;">${formatFCFA(totalAfter)}</span>
+      </div>
+      <p style="margin:8px 0 0;color:#a1a1aa;font-size:13px;">${totalQty} carte${totalQty > 1 ? 's' : ''}</p>
+    </div>
+
+    <div style="background-color:#0a0a0a;border:1px solid #27272a;border-radius:8px;padding:12px 16px;margin:16px 0;">
+      <p style="margin:0 0 4px;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;">Client</p>
+      <p style="margin:0 0 2px;color:#e4e4e7;">${customerName || 'Non fourni'}</p>
+      <p style="margin:0;color:#a1a1aa;font-size:13px;">${customerPhone || 'Pas de téléphone'}</p>
+    </div>
+
+    ${ctaButton('Voir dans l\'admin', `${SITE_URL}/admin`)}
+    
+    <p style="margin:12px 0 0;color:#52525b;font-size:12px;">Connecte-toi à l'admin pour confirmer le paiement et mettre à jour le statut de livraison.</p>
+  `
+
+  return sendEmail(
+    'dkrtap@gmail.com',
+    `🔔 Nouvelle commande ${orderId} — ${formatFCFA(totalAfter)} (${totalQty} cartes)`,
+    emailShell(content, 'Nouvelle commande')
+  )
+}
