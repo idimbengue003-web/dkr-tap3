@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 type Props = {
   brandName: string
@@ -24,6 +24,33 @@ const LINKS = [
 
 export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenCart }: Props) {
   const [open, setOpen] = useState(false)
+
+  // Quand le menu est ouvert, on verrouille le scroll du body pour éviter
+  // que le scroll se propage au site en arrière-plan (scroll chaining),
+  // notamment sur iOS Safari où ce bug est très visible.
+  useEffect(() => {
+    if (!open) return
+    const prevOverflow = document.body.style.overflow
+    const prevPosition = document.body.style.position
+    const prevTop = document.body.style.top
+    const prevScrollY = window.scrollY
+    // Verrouille le body : on sort du flux via position fixed pour figer le scroll
+    document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${prevScrollY}px`
+    document.body.style.left = '0'
+    document.body.style.right = '0'
+    return () => {
+      // Restauration
+      document.body.style.overflow = prevOverflow
+      document.body.style.position = prevPosition
+      document.body.style.top = prevTop
+      document.body.style.left = ''
+      document.body.style.right = ''
+      // Ré-aligne le scroll là où on était avant ouverture
+      window.scrollTo(0, prevScrollY)
+    }
+  }, [open])
 
   if (!open) {
     return (
@@ -83,17 +110,24 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
         </button>
       </div>
 
-      {/* Menu — UN SEUL div fixed, overlay + panel en absolute DEDANS */}
+      {/* Menu — UN SEUL div fixed, overlay + panel en absolute DEDANS.
+          On verrouille le body via le useEffect ci-dessus pour éviter le scroll chaining. */}
       <div
         className="fixed inset-0 z-[60] md:hidden"
         onClick={() => setOpen(false)}
       >
         {/* Overlay — absolute dans le parent fixed */}
-        <div className="absolute inset-0 bg-black" style={{ opacity: 0.85 }} />
-
-        {/* Panel — absolute dans le parent fixed, à droite */}
         <div
-          className="absolute top-0 right-0 h-screen w-[85vw] max-w-[360px] bg-zinc-950 border-l border-zinc-800 overflow-y-auto"
+          className="absolute inset-0 bg-black"
+          style={{ opacity: 0.85, touchAction: 'none' }}
+        />
+
+        {/* Panel — absolute dans le parent fixed, à droite.
+            On utilise h-full (et non h-screen) car le parent fixed inset-0
+            fait déjà 100vh, et h-full est plus stable sur iOS Safari (la
+            barre d'URL dynamique fait varier 100vh et provoque du jitter). */}
+        <div
+          className="absolute top-0 right-0 h-full w-[85vw] max-w-[360px] bg-zinc-950 border-l border-zinc-800 overflow-y-auto overscroll-contain"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}

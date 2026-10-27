@@ -2598,22 +2598,34 @@ function CategoriesSection() {
           <div className="divide-y divide-zinc-100">
             {categories.map((cat) => (
               <div key={cat.id}>
-                <div className="flex items-center justify-between gap-3 py-2.5">
+                <div className="flex items-start sm:items-center justify-between gap-3 py-2.5">
                   <button
-                    className="flex-1 min-w-0 text-left flex items-center gap-2 hover:bg-zinc-50 rounded-lg p-1 -m-1 transition-colors"
+                    className="flex-1 min-w-0 text-left flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-1.5 sm:gap-2 hover:bg-zinc-50 rounded-lg p-1 -m-1 transition-colors"
                     onClick={() => {
                       setSelectedCategory(cat)
                       fetchModels(cat.id)
                     }}
                   >
-                    <span className="font-medium text-sm">{cat.name}</span>
-                    {cat.network && <Badge variant="outline" className="text-xs">{cat.network}</Badge>}
-                    <span className="text-sm font-bold text-emerald-600">{cat.price.toLocaleString('fr-FR')} FCFA</span>
-                    {catModels[cat.id] && catModels[cat.id].length > 0 && (
-                      <Badge variant="outline" className="text-xs text-zinc-500">{catModels[cat.id].length} modèle(s)</Badge>
-                    )}
+                    {/* Ligne 1 : nom (tronqué) + badge réseau */}
+                    <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-none">
+                      <span className="font-medium text-sm truncate">{cat.name}</span>
+                      {cat.network && (
+                        <Badge variant="outline" className="text-xs shrink-0">{cat.network}</Badge>
+                      )}
+                    </div>
+                    {/* Ligne 2 (mobile) / suite (desktop) : prix + nb modèles */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-bold text-emerald-600 whitespace-nowrap">
+                        {cat.price.toLocaleString('fr-FR')} FCFA
+                      </span>
+                      {catModels[cat.id] && catModels[cat.id].length > 0 && (
+                        <Badge variant="outline" className="text-xs text-zinc-500 shrink-0">
+                          {catModels[cat.id].length} modèle(s)
+                        </Badge>
+                      )}
+                    </div>
                   </button>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 shrink-0">
                     <Button size="sm" variant="ghost" onClick={() => handleEdit(cat)} title="Modifier">
                       <Pencil size={14} />
                     </Button>
@@ -3359,28 +3371,28 @@ function StickerRow({
         {/* Identité */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
-            <Badge variant="outline" className={`text-[10px] ${catColor}`}>
+            <Badge variant="outline" className={`text-[10px] ${catColor} shrink-0`}>
               {category}
             </Badge>
-            <code className="text-sm font-mono font-semibold text-zinc-900">
+            <code className="text-sm font-mono font-semibold text-zinc-900 truncate min-w-0">
               {sticker.slug}
             </code>
             {sticker.label && (
-              <span className="text-sm text-zinc-600 truncate">
+              <span className="text-sm text-zinc-600 truncate min-w-0">
                 — {sticker.label}
               </span>
             )}
             {!sticker.active && (
-              <Badge variant="outline" className="text-zinc-500 border-zinc-300">
+              <Badge variant="outline" className="text-zinc-500 border-zinc-300 shrink-0">
                 Inactif
               </Badge>
             )}
             {sticker.targetUrl ? (
-              <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50">
+              <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50 shrink-0">
                 Configuré
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
+              <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 shrink-0">
                 Vierge
               </Badge>
             )}
