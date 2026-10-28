@@ -1341,7 +1341,10 @@ export default function Home() {
               </div>
             ) : (
               <ScrollArea className="max-h-[70vh]">
-                <div className="divide-y divide-zinc-100">
+                {/* Espacement entre lignes : on remplace divide-y par des cartes
+                    individuelles avec leur propre padding, ce qui donne plus
+                    d'air et rend chaque ligne plus lisible (surtout sur mobile). */}
+                <div className="flex flex-col gap-2.5">
                   {filtered.map((s) => (
                     <StickerRow
                       key={s.id}
@@ -2595,10 +2598,13 @@ function CategoriesSection() {
             Aucune catégorie. Clique sur "Nouvelle catégorie" pour en créer une.
           </p>
         ) : (
-          <div className="divide-y divide-zinc-100">
+          <div className="flex flex-col gap-2.5">
             {categories.map((cat) => (
-              <div key={cat.id}>
-                <div className="flex items-start sm:items-center justify-between gap-3 py-2.5">
+              <div
+                key={cat.id}
+                className="rounded-lg border border-zinc-200 bg-white p-3 hover:border-zinc-300 transition-colors"
+              >
+                <div className="flex items-start sm:items-center justify-between gap-3">
                   <button
                     className="flex-1 min-w-0 text-left flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-1.5 sm:gap-2 hover:bg-zinc-50 rounded-lg p-1 -m-1 transition-colors"
                     onClick={() => {
@@ -3349,7 +3355,7 @@ function StickerRow({
   const catColor = catColors[category] || catColors['Autre']
 
   return (
-    <div className="p-4 hover:bg-zinc-50 transition-colors">
+    <div className="p-4 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 hover:border-zinc-300 transition-colors">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         {/* Aperçu QR stylisé (mini) */}
         <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-zinc-200 bg-white flex items-center justify-center">

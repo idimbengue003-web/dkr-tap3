@@ -48,8 +48,9 @@ export async function PATCH(
     }
 
     // Mettre à jour uniquement le targetUrl (pas l'active ni le label)
-    // Utilise updateSticker existant
-    const updated = await db.updateSticker(sticker.slug, {
+    // ⚠️ On utilise updateStickerBySlug car on a récupéré sticker.slug ci-dessus.
+    // db.updateSticker attend un id interne et retournerait null → erreur 500.
+    const updated = await db.updateStickerBySlug(sticker.slug, {
       targetUrl: finalTargetUrl,
     })
 

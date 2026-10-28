@@ -58,7 +58,10 @@ export async function POST(
     }
 
     // Sauvegarder l'URL
-    const updated = await db.updateSticker(slug, {
+    // ⚠️ On utilise updateStickerBySlug (et non updateSticker) car le slug
+    // est la seule clé qu'on connait ici — updateSticker attend un id interne
+    // et retournerait null systématiquement → "Échec de la sauvegarde".
+    const updated = await db.updateStickerBySlug(slug, {
       targetUrl: finalUrl,
       customActionText: sticker.customActionText,
     })
