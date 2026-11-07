@@ -28,3 +28,6 @@ node_modules/
 # Tool results (sandbox)
 tool-results/
 upload/
+
+# Sandbox skill files — hors sujet du projet
+/skills/
