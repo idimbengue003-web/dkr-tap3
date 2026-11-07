@@ -1194,48 +1194,51 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-zinc-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-zinc-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
             {/* Logo de marque dans un conteneur sombre pour le contraste sur fond blanc */}
-            <div className="w-11 h-11 rounded-xl bg-zinc-900 flex items-center justify-center p-1.5 shrink-0">
+            <div className="w-9 h-9 rounded-lg bg-zinc-900 flex items-center justify-center p-1.5 shrink-0">
               <img
                 src={BRAND_LOGO_URL}
                 alt={`Logo ${BRAND_NAME}`}
-                width={32}
-                height={32}
+                width={26}
+                height={26}
                 className="w-full h-full"
               />
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-zinc-900 tracking-tight">
+            <div className="min-w-0">
+              <h1 className="text-base font-semibold text-zinc-900 tracking-tight truncate">
                 {BRAND_NAME}
               </h1>
-              <p className="text-xs text-zinc-500">
-                Gérez les redirections de vos stickers QR
+              <p className="text-[11px] text-zinc-500 -mt-0.5 hidden sm:block">
+                Tableau de bord stickers QR
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Button
               onClick={() => setScannerOpen(true)}
               variant="outline"
-              className="self-start sm:self-auto"
-              title="Scanner un sticker physique pour l'éditer"
+              size="icon"
+              title="Scanner un sticker physique"
+              aria-label="Scanner"
+              className="shrink-0"
             >
-              <ScanLine size={16} className="mr-1.5" />
-              Scanner
+              <ScanLine size={16} />
             </Button>
-            <Button onClick={() => openEdit()} className="self-start sm:self-auto">
-              <Plus size={16} className="mr-1.5" />
-              Nouveau sticker
+            <Button onClick={() => openEdit()} size="sm" className="shrink-0">
+              <Plus size={14} className="sm:mr-1.5" />
+              <span className="hidden sm:inline">Nouveau sticker</span>
+              <span className="sm:hidden sr-only">Nouveau sticker</span>
             </Button>
             <Button
               onClick={handleLogout}
-              variant="outline"
+              variant="ghost"
               size="icon"
               title="Se déconnecter"
-              className="shrink-0"
+              aria-label="Se déconnecter"
+              className="shrink-0 text-zinc-500 hover:text-zinc-900"
             >
               <LogOut size={16} />
             </Button>
@@ -3340,17 +3343,26 @@ function StickerRow({
 }) {
   const [showUrl, setShowUrl] = useState(false)
 
-  // Couleur du badge selon la catégorie
+  // Un seul point coloré pour le statut — remplace les anciens badges
+  // "Inactif" / "Configuré" / "Vierge" qui surchargeaient la ligne.
+  const statusDot = !sticker.active
+    ? { color: 'bg-zinc-400', label: 'Inactif' }
+    : sticker.targetUrl
+      ? { color: 'bg-emerald-500', label: 'Configuré' }
+      : { color: 'bg-amber-500', label: 'Vierge' }
+
+  // Couleur du badge catégorie — on garde les teintes existantes mais
+  // en plus discret (border + bg plus clairs) pour un rendu moins "AI".
   const catColors: Record<string, string> = {
-    'Instagram': 'bg-pink-100 text-pink-700 border-pink-300',
-    'TikTok': 'bg-red-100 text-red-700 border-red-300',
-    'Google Reviews': 'bg-blue-100 text-blue-700 border-blue-300',
-    'WhatsApp': 'bg-green-100 text-green-700 border-green-300',
-    'YouTube': 'bg-red-100 text-red-700 border-red-300',
-    'Facebook': 'bg-blue-100 text-blue-700 border-blue-300',
-    'Snapchat': 'bg-yellow-100 text-yellow-700 border-yellow-300',
-    'Personnalisé': 'bg-purple-100 text-purple-700 border-purple-300',
-    'Autre': 'bg-zinc-100 text-zinc-600 border-zinc-300',
+    'Instagram': 'text-pink-600',
+    'TikTok': 'text-red-600',
+    'Google Reviews': 'text-blue-600',
+    'WhatsApp': 'text-green-600',
+    'YouTube': 'text-red-600',
+    'Facebook': 'text-blue-600',
+    'Snapchat': 'text-yellow-600',
+    'Personnalisé': 'text-purple-600',
+    'Autre': 'text-zinc-500',
   }
   const catColor = catColors[category] || catColors['Autre']
 
@@ -3374,45 +3386,36 @@ function StickerRow({
           />
         </div>
 
-        {/* Identité */}
+        {/* Identité — layout plus propre : slug + label sur ligne 1,
+            catégorie en sous-titre sur ligne 2, sans empilement de badges. */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <Badge variant="outline" className={`text-[10px] ${catColor} shrink-0`}>
-              {category}
-            </Badge>
+          <div className="flex items-baseline gap-2 min-w-0">
             <code className="text-sm font-mono font-semibold text-zinc-900 truncate min-w-0">
               {sticker.slug}
             </code>
             {sticker.label && (
-              <span className="text-sm text-zinc-600 truncate min-w-0">
-                — {sticker.label}
+              <span className="text-sm text-zinc-500 truncate min-w-0">
+                · {sticker.label}
               </span>
             )}
-            {!sticker.active && (
-              <Badge variant="outline" className="text-zinc-500 border-zinc-300 shrink-0">
-                Inactif
-              </Badge>
-            )}
-            {sticker.targetUrl ? (
-              <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50 shrink-0">
-                Configuré
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 shrink-0">
-                Vierge
-              </Badge>
-            )}
+            {/* Point statut + label discret à droite */}
+            <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-zinc-500 shrink-0">
+              <span className={`w-1.5 h-1.5 rounded-full ${statusDot.color}`} />
+              {statusDot.label}
+            </span>
           </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <button
-              onClick={() => setShowUrl((v) => !v)}
-              className="inline-flex items-center gap-1 hover:text-zinc-700 transition-colors"
-            >
-              {showUrl ? <EyeOff size={12} /> : <Eye size={12} />}
-              {showUrl ? 'Masquer l\'URL' : 'Afficher l\'URL publique'}
-            </button>
+          <div className="flex items-center gap-2 text-xs text-zinc-500 mt-0.5">
+            <span className={catColor}>{category}</span>
             <span>·</span>
             <span>{sticker.scanCount} scan{sticker.scanCount > 1 ? 's' : ''}</span>
+            <span>·</span>
+            <button
+              onClick={() => setShowUrl((v) => !v)}
+              className="inline-flex items-center gap-1 hover:text-zinc-900 transition-colors"
+            >
+              {showUrl ? <EyeOff size={11} /> : <Eye size={11} />}
+              {showUrl ? 'Masquer l\'URL' : 'Voir l\'URL'}
+            </button>
           </div>
           {showUrl && (
             <code className="block text-xs font-mono text-zinc-600 mt-1.5 break-all bg-zinc-50 px-2 py-1 rounded border border-zinc-100">
@@ -3420,7 +3423,7 @@ function StickerRow({
             </code>
           )}
           {sticker.targetUrl && (
-            <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+            <div className="mt-1 flex items-center gap-1.5 text-xs">
               <span className="text-zinc-400">→</span>
               <a
                 href={sticker.targetUrl}
