@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { QrCode, Check, Loader2, ExternalLink, Copy } from 'lucide-react'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
@@ -63,16 +63,23 @@ const URL_GUIDES = [
 
 export default function ConfigurePage() {
   const params = useParams()
-  const router = useRouter()
   const slug = params.slug as string
 
   const [loading, setLoading] = useState(true)
   const [sticker, setSticker] = useState<any>(null)
   const [error, setError] = useState('')
   const [url, setUrl] = useState('')
+  // URL finale effectivement sauvegardée (avec https:// ajouté si besoin).
+  // Utilisée par l'écran de succès pour le lien "Tester" — sinon le bouton
+  // pointerait vers une URL relative (404 sur le domaine courant).
+  const [savedUrl, setSavedUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [urlError, setUrlError] = useState('')
+  // Si la carte est déjà configurée, on lance la redirection vers l'URL cible.
+  // Pendant ce court délai, on reste sur l'écran de chargement pour éviter
+  // de flasher le formulaire en dessous de la redirection.
+  const [redirecting, setRedirecting] = useState(false)
 
   // Charger les infos du sticker
   useEffect(() => {
@@ -82,11 +89,14 @@ export default function ConfigurePage() {
         return res.json()
       })
       .then((data) => {
-        setSticker(data)
         if (data.targetUrl) {
-          // Si déjà configuré, rediriger vers l'URL cible
+          // Rediriger vers l'URL cible — on reste en mode "redirecting"
+          // pour ne pas afficher le formulaire pendant la redirection.
+          setRedirecting(true)
           window.location.href = data.targetUrl
+          return
         }
+        setSticker(data)
         setLoading(false)
       })
       .catch((e) => {
@@ -141,6 +151,10 @@ export default function ConfigurePage() {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || 'Échec de la sauvegarde')
       }
+      // On mémorise l'URL finale (avec https://) pour l'écran de succès.
+      // Sinon le bouton "Tester le lien" pointerait vers une URL relative.
+      setSavedUrl(finalUrl)
+      setUrl(finalUrl) // synchronise aussi l'affichage
       setSaved(true)
     } catch (e) {
       setUrlError((e as Error).message)
@@ -149,7 +163,7 @@ export default function ConfigurePage() {
     }
   }
 
-  if (loading) {
+  if (loading || redirecting) {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
         <Loader2 size={32} className="animate-spin text-emerald-500" />
@@ -182,10 +196,10 @@ export default function ConfigurePage() {
             Quand quelqu'un scanne votre carte, il sera redirigé vers :
           </p>
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-3 mb-6">
-            <p className="text-emerald-400 text-sm break-all">{url}</p>
+            <p className="text-emerald-400 text-sm break-all">{savedUrl}</p>
           </div>
           <a
-            href={url}
+            href={savedUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400"
@@ -233,9 +247,9 @@ export default function ConfigurePage() {
             <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0">
               <QrCode size={20} className="text-emerald-400" />
             </div>
-            <div>
-              <p className="text-sm font-semibold">{sticker.label || 'Carte QR DKR TAP'}</p>
-              <p className="text-xs text-zinc-500">Carte #{slug}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium truncate">{sticker.label || 'Carte QR DKR TAP'}</p>
+              <p className="text-xs text-zinc-500 font-mono truncate">#{slug}</p>
             </div>
           </div>
         )}
@@ -243,10 +257,11 @@ export default function ConfigurePage() {
         {/* Formulaire */}
         <form onSubmit={handleSubmit} className="space-y-4 mb-8">
           <div>
-            <label className="text-sm font-semibold mb-2 block">
+            <label htmlFor="target-url" className="text-sm font-medium mb-2 block">
               Votre lien de redirection
             </label>
             <input
+              id="target-url"
               type="text"
               value={url}
               onChange={(e) => {
@@ -256,20 +271,23 @@ export default function ConfigurePage() {
               placeholder="https://instagram.com/votre_compte"
               className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500"
               autoFocus
+              inputMode="url"
+              autoComplete="url"
+              spellCheck={false}
             />
             {urlError && <p className="text-xs text-red-400 mt-1">{urlError}</p>}
-            <p className="text-xs text-zinc-500 mt-1">
-              Collez l'URL complète (avec https://) vers laquelle vous voulez rediriger vos clients.
+            <p className="text-xs text-zinc-500 mt-1.5">
+              Collez l'URL complète vers laquelle vos clients doivent être redirigés. Le <code className="text-zinc-400">https://</code> est ajouté automatiquement si vous l'oubliez.
             </p>
           </div>
 
           <button
             type="submit"
             disabled={saving || !url.trim()}
-            className="w-full py-3.5 rounded-xl bg-emerald-500 text-black font-bold text-lg hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-xl bg-emerald-500 text-black font-semibold text-base hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {saving ? (
-              <><Loader2 size={18} className="animate-spin" /> Configuration...</>
+              <><Loader2 size={18} className="animate-spin" /> Configuration…</>
             ) : (
               <><Check size={18} /> Activer ma carte</>
             )}
@@ -277,25 +295,27 @@ export default function ConfigurePage() {
         </form>
 
         {/* Guides par réseau */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">
-            📋 Comment trouver votre URL ?
-          </h2>
+        <div className="space-y-2">
+          <p className="text-sm text-zinc-500 mb-2">
+            Comment trouver votre URL ?
+          </p>
           {URL_GUIDES.map((g) => (
             <details key={g.network} className="rounded-lg border border-zinc-800 bg-zinc-900/50 overflow-hidden">
-              <summary className="flex items-center gap-3 p-3 cursor-pointer hover:bg-zinc-800/50">
-                <span className="text-xl">{g.icon}</span>
-                <span className="font-semibold text-sm">{g.network}</span>
-                <span className="ml-auto text-xs text-zinc-500">Voir le guide</span>
+              <summary className="flex items-center gap-3 p-3 cursor-pointer hover:bg-zinc-800/50 list-none">
+                <span className="text-lg shrink-0">{g.icon}</span>
+                <span className="font-medium text-sm">{g.network}</span>
+                <span className="ml-auto text-xs text-zinc-600">Voir</span>
               </summary>
               <div className="px-3 pb-3 pt-1">
                 <p className="text-sm text-zinc-400 leading-relaxed mb-2">{g.guide}</p>
                 <div className="flex items-center gap-2 rounded-lg bg-zinc-950 p-2">
                   <code className="text-xs text-emerald-400 flex-1 break-all">{g.example}</code>
                   <button
+                    type="button"
                     onClick={() => navigator.clipboard.writeText(g.example)}
                     className="text-zinc-500 hover:text-white shrink-0"
                     title="Copier"
+                    aria-label={`Copier l'exemple ${g.network}`}
                   >
                     <Copy size={14} />
                   </button>
@@ -306,25 +326,16 @@ export default function ConfigurePage() {
         </div>
 
         {/* Note */}
-        <div className="mt-8 p-4 rounded-lg bg-zinc-900/50 border border-zinc-800 text-center">
-          <p className="text-xs text-zinc-500">
-            🔒 Cette page de configuration n'apparaît que la première fois que vous scannez votre carte.
-            Une fois configurée, votre carte redirigera directement vers le lien choisi.
-            <br /><br />
-            Vous pourrez modifier ce lien à tout moment sur{' '}
-            <a href="/account" className="text-emerald-400 hover:underline">dkrtap.site/account</a>.
+        <div className="mt-8 text-center text-xs text-zinc-600 space-y-1">
+          <p>
+            Cette page n'apparaît que la première fois que vous scannez votre carte.
           </p>
-        </div>
-
-        {/* Bouton aide */}
-        <div className="mt-6 text-center">
-          <p className="text-xs text-zinc-600 mb-2">Besoin d'aide pour configurer votre carte ?</p>
-          <a
-            href={`tel:${BRAND_PHONE.replace(/\s/g, '')}`}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-800 text-white text-sm font-semibold hover:bg-zinc-700"
-          >
-            📞 Appeler le {BRAND_PHONE}
-          </a>
+          <p>
+            Pour modifier ce lien plus tard :{' '}
+            <a href="/account" className="text-emerald-400 hover:underline">dkrtap.site/account</a>
+            {' · '}
+            <a href={`tel:${BRAND_PHONE.replace(/\s/g, '')}`} className="text-emerald-400 hover:underline">{BRAND_PHONE}</a>
+          </p>
         </div>
       </main>
     </div>
