@@ -87,6 +87,10 @@ type Sticker = {
     y: number
     size: number
   } | null
+  /** Mode template (impression en masse). */
+  isTemplate?: boolean
+  /** Slug du template dont ce sticker est issu (si auto-créé depuis un template). */
+  createdFromTemplate?: string | null
 }
 
 type StickerForm = {
@@ -96,6 +100,9 @@ type StickerForm = {
   active: boolean
   customActionText: string
   customNetwork: 'auto' | 'google' | 'tiktok' | 'instagram' | 'whatsapp' | 'youtube' | 'facebook' | 'snapchat' | 'none'
+  /** Mode template : coché → le sticker sera imprimé en N exemplaires et chaque
+   *  scan d'un client créera un nouveau sticker dans l'admin avec son URL. */
+  isTemplate: boolean
 }
 
 const EMPTY_FORM: StickerForm = {
@@ -105,6 +112,7 @@ const EMPTY_FORM: StickerForm = {
   active: true,
   customActionText: '',
   customNetwork: 'auto',
+  isTemplate: false,
 }
 
 // Payload retourné par GET /api/stats
@@ -525,6 +533,7 @@ export default function Home() {
         customActionText: sticker.customActionText ?? '',
         customNetwork:
           (sticker.customNetwork as StickerForm['customNetwork']) ?? 'auto',
+        isTemplate: sticker.isTemplate ?? false,
       })
     } else {
       setEditingId(null)
@@ -564,6 +573,7 @@ export default function Home() {
         active: form.active,
         customActionText: form.customActionText.trim() || null,
         customNetwork: form.customNetwork === 'auto' ? null : form.customNetwork,
+        isTemplate: form.isTemplate,
       }
 
       const url = editingId
@@ -1548,6 +1558,28 @@ export default function Home() {
                 checked={form.active}
                 onCheckedChange={(c) =>
                   setForm((f) => ({ ...f, active: c }))
+                }
+              />
+            </div>
+
+            {/* Mode template — impression en masse */}
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+              <div className="min-w-0">
+                <Label htmlFor="isTemplate" className="text-sm font-medium">
+                  Mode impression en masse
+                </Label>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Tu imprimes ce sticker en plusieurs exemplaires identiques.
+                  Chaque client qui scanne et configure son URL crée
+                  automatiquement une nouvelle ligne dans l&apos;admin —
+                  l&apos;original reste ouvert pour les prochains scans.
+                </p>
+              </div>
+              <Switch
+                id="isTemplate"
+                checked={form.isTemplate}
+                onCheckedChange={(c) =>
+                  setForm((f) => ({ ...f, isTemplate: c }))
                 }
               />
             </div>
@@ -3350,11 +3382,15 @@ function StickerRow({
 
   // Un seul point coloré pour le statut — remplace les anciens badges
   // "Inactif" / "Configuré" / "Vierge" qui surchargeaient la ligne.
-  const statusDot = !sticker.active
-    ? { color: 'bg-zinc-400', label: 'Inactif' }
-    : sticker.targetUrl
-      ? { color: 'bg-emerald-500', label: 'Configuré' }
-      : { color: 'bg-amber-500', label: 'Vierge' }
+  // Pour les templates, le statut est "Template" (orange) car il ne redirige
+  // jamais — chaque scan crée un nouveau sticker.
+  const statusDot = sticker.isTemplate
+    ? { color: 'bg-orange-500', label: 'Template' }
+    : !sticker.active
+      ? { color: 'bg-zinc-400', label: 'Inactif' }
+      : sticker.targetUrl
+        ? { color: 'bg-emerald-500', label: 'Configuré' }
+        : { color: 'bg-amber-500', label: 'Vierge' }
 
   // Couleur du badge catégorie — on garde les teintes existantes mais
   // en plus discret (border + bg plus clairs) pour un rendu moins "AI".
@@ -3413,6 +3449,12 @@ function StickerRow({
             <span className={catColor}>{category}</span>
             <span>·</span>
             <span>{sticker.scanCount} scan{sticker.scanCount > 1 ? 's' : ''}</span>
+            {sticker.createdFromTemplate && (
+              <>
+                <span>·</span>
+                <span className="text-orange-500/80">auto</span>
+              </>
+            )}
             <span>·</span>
             <button
               onClick={() => setShowUrl((v) => !v)}

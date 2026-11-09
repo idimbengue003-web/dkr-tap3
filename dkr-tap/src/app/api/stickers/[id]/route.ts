@@ -16,7 +16,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { label, targetUrl, active, customActionText, customNetwork, qrPosition, qrSize, textOverlay, stickerTheme } = body
+    const { label, targetUrl, active, customActionText, customNetwork, qrPosition, qrSize, textOverlay, stickerTheme, isTemplate } = body
 
     // Vérifier existence
     const existing = await db.getStickerById(id)
@@ -43,6 +43,7 @@ export async function PUT(
         size: number
       } | null
       stickerTheme?: 'white' | 'black' | 'transparent' | null
+      isTemplate?: boolean
     } = {}
 
     if (label !== undefined) {
@@ -155,6 +156,11 @@ export async function PUT(
       ) {
         data.stickerTheme = stickerTheme as 'white' | 'black' | 'transparent'
       }
+    }
+
+    // Mode template (impression en masse) — booléen optionnel
+    if (isTemplate !== undefined) {
+      data.isTemplate = Boolean(isTemplate)
     }
 
     const updated = await db.updateSticker(id, data)

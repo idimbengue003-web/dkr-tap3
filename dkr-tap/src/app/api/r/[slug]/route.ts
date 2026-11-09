@@ -49,6 +49,15 @@ export async function GET(
     label: sticker.label,
   }).catch(() => {})
 
+  // ⭐ Mode template : un sticker "maître" imprimé en N exemplaires.
+  // Il ne redirige JAMAIS — toujours envoyer sur /configure pour que le
+  // client saisisse son URL (qui créera un nouveau sticker via l'API
+  // redirect-url, sans modifier le template).
+  if (sticker.active && sticker.isTemplate) {
+    const configureUrl = new URL(`/configure/${slug}`, request.url)
+    return NextResponse.redirect(configureUrl, 302)
+  }
+
   // ⭐ Si le sticker existe mais n'a PAS d'URL configurée → page de configuration
   if (sticker.active && !sticker.targetUrl) {
     const configureUrl = new URL(`/configure/${slug}`, request.url)

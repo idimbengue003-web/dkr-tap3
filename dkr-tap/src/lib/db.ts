@@ -62,6 +62,16 @@ export type Sticker = {
     y: number // 0-1
     size: number // 0.02 à 0.15, taille en % du min(w, h)
   } | null
+  /** Mode template : sticker "maître" imprimé en N exemplaires identiques.
+   *  Quand un client scanne un template, il arrive sur /configure comme d'habitude,
+   *  mais la soumission de son URL CRÉE UN NOUVEAU STICKER au lieu de modifier
+   *  le template. Le template reste ouvert pour les scans suivants.
+   *  Permet d'imprimer 100 stickers identiques et de capturer 100 configurations
+   *  distinctes dans l'admin. */
+  isTemplate?: boolean
+  /** Slug du template qui a créé ce sticker (si applicable).
+   *  Permet à l'admin de filtrer/regrouper les stickers auto-créés par template. */
+  createdFromTemplate?: string | null
 }
 
 export type StickerInput = {
@@ -79,6 +89,8 @@ export type StickerInput = {
     y: number
     size: number
   } | null
+  isTemplate?: boolean
+  createdFromTemplate?: string | null
 }
 
 export type StickerUpdate = Partial<
@@ -92,6 +104,7 @@ export type StickerUpdate = Partial<
     | 'qrPosition'
     | 'qrSize'
     | 'textOverlay'
+    | 'isTemplate'
   >
 >
 
@@ -142,6 +155,8 @@ export const db = {
       qrPosition: input.qrPosition ?? { x: 0.85, y: 0.85 }, // bas-droite par défaut
       qrSize: input.qrSize ?? 0.25, // 25% du min(w, h) par défaut
       textOverlay: input.textOverlay ?? null,
+      isTemplate: input.isTemplate ?? false,
+      createdFromTemplate: input.createdFromTemplate ?? null,
     }
 
     // Pipeline-like : set sticker + set id→slug mapping + index liste
@@ -255,6 +270,9 @@ export const db = {
       ...(updates.textOverlay !== undefined
         ? { textOverlay: updates.textOverlay }
         : {}),
+      ...(updates.isTemplate !== undefined
+        ? { isTemplate: updates.isTemplate }
+        : {}),
       updatedAt: new Date().toISOString(),
     }
 
@@ -298,11 +316,79 @@ export const db = {
       ...(updates.textOverlay !== undefined
         ? { textOverlay: updates.textOverlay }
         : {}),
+      ...(updates.isTemplate !== undefined
+        ? { isTemplate: updates.isTemplate }
+        : {}),
       updatedAt: new Date().toISOString(),
     }
 
     await store.set(`sticker:${slug}`, updated)
     return getStickerWithScans(slug)
+  },
+
+  /**
+   * Crée un NOUVEAU sticker depuis un template.
+   *
+   * Cas d'usage : un client scanne un sticker template (isTemplate: true),
+   * remplit l'URL sur /configure/[templateSlug]. Au lieu de modifier le
+   * template (qui doit rester ouvert pour les prochains scans), on crée
+   * un nouveau sticker unique avec l'URL du client.
+   *
+   * Le nouveau sticker hérite des réglages visuels du template (customNetwork,
+   * qrPosition, qrSize, customActionText, textOverlay, image uploadée) mais
+   * a son propre slug, son propre id, et son targetUrl = URL du client.
+   *
+   * @param templateSlug slug du sticker template scanné
+   * @param targetUrl URL saisie par le client (déjà validée par l'API route)
+   * @returns le sticker créé, ou null si le template n'existe pas
+   */
+  async createStickerFromTemplate(
+    templateSlug: string,
+    targetUrl: string
+  ): Promise<Sticker | null> {
+    const template = await store.get<Omit<Sticker, 'scanCount'>>(
+      `sticker:${templateSlug}`
+    )
+    if (!template) return null
+
+    // Générer un nouveau slug unique de 8 caractères
+    let newSlug = Math.random().toString(36).slice(2, 10)
+    let attempts = 0
+    while (await this.slugExists(newSlug)) {
+      if (attempts++ > 10) {
+        newSlug = `${newSlug}-${Math.random().toString(36).slice(2, 6)}`
+        break
+      }
+      newSlug = Math.random().toString(36).slice(2, 10)
+    }
+
+    // Label lisible : "Auto - <date> - <label template>"
+    const dateStr = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    const templateLabelPart = template.label || templateSlug
+    const newLabel = `Auto ${dateStr} · ${templateLabelPart}`
+
+    // Créer le sticker héritant des réglages visuels du template
+    const created = await this.createSticker({
+      slug: newSlug,
+      label: newLabel,
+      targetUrl,
+      active: true,
+      customActionText: template.customActionText ?? null,
+      customNetwork: template.customNetwork ?? null,
+      qrPosition: template.qrPosition ?? { x: 0.85, y: 0.85 },
+      qrSize: template.qrSize ?? 0.25,
+      textOverlay: template.textOverlay ?? null,
+      isTemplate: false,
+      createdFromTemplate: templateSlug,
+    })
+
+    // Copier l'image uploadée si elle existe
+    const templateImage = await store.get<string>(`stickerImage:${templateSlug}`)
+    if (templateImage) {
+      await store.set(`stickerImage:${newSlug}`, templateImage)
+    }
+
+    return created
   },
 
   /**

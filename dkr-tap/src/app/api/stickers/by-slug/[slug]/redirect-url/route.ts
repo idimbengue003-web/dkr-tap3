@@ -29,7 +29,10 @@ export async function POST(
   }
 
   // Si déjà configurée, refuser (la page ne devrait plus être accessible)
-  if (sticker.targetUrl) {
+  // ⚠️ SAUF si c'est un template — dans ce cas on ne rejette pas car le
+  // template ne stocke jamais d'URL (il doit rester "ouvert" pour les
+  // prochains scans). Chaque soumission crée un nouveau sticker à la place.
+  if (sticker.targetUrl && !sticker.isTemplate) {
     return NextResponse.json(
       { error: 'Cette carte a déjà été configurée', targetUrl: sticker.targetUrl },
       { status: 400 }
@@ -57,6 +60,25 @@ export async function POST(
       }
     }
 
+    // ⭐ Mode template : on ne modifie PAS le template. On crée un nouveau
+    // sticker unique avec l'URL du client. Le template reste "ouvert".
+    if (sticker.isTemplate) {
+      const newSticker = await db.createStickerFromTemplate(slug, finalUrl)
+      if (!newSticker) {
+        return NextResponse.json({ error: 'Échec de la création du sticker' }, { status: 500 })
+      }
+      console.log(`[configure/template] ✓ Nouveau sticker ${newSticker.slug} créé depuis template ${slug} → ${finalUrl}`)
+      return NextResponse.json({
+        ok: true,
+        templateMode: true,
+        slug: newSticker.slug,           // nouveau slug auto-généré
+        templateSlug: slug,              // slug du template scanné
+        targetUrl: finalUrl,
+        label: newSticker.label,
+        message: 'Sticker créé depuis le template',
+      })
+    }
+
     // Sauvegarder l'URL
     // ⚠️ On utilise updateStickerBySlug (et non updateSticker) car le slug
     // est la seule clé qu'on connait ici — updateSticker attend un id interne
@@ -74,6 +96,7 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
+      templateMode: false,
       slug,
       targetUrl: finalUrl,
       message: 'Carte configurée avec succès',

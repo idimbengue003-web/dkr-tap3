@@ -28,5 +28,9 @@ export async function GET(
     targetUrl: sticker.targetUrl, // si déjà configuré, la page redirige
     active: sticker.active,
     scanCount: sticker.scanCount,
+    // isTemplate est public car la page /configure a besoin de savoir si
+    // elle doit afficher le flux "template" (création d'un nouveau sticker)
+    // plutôt que le flux standard (modification du sticker courant).
+    isTemplate: sticker.isTemplate ?? false,
   })
 }

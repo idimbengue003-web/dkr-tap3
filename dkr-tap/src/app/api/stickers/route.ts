@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
       customActionText,
       customNetwork,
       qrPosition,
+      isTemplate,
     } = body
 
     // Générer un slug unique court si non fourni (8 caractères base36)
@@ -90,6 +91,9 @@ export async function POST(request: NextRequest) {
           : null,
       customNetwork: finalCustomNetwork,
       qrPosition: finalQrPosition,
+      // Mode template : pour impression en masse — chaque scan crée un nouveau
+      // sticker auto dans l'admin au lieu de modifier celui-ci.
+      isTemplate: Boolean(isTemplate),
     })
 
     return NextResponse.json(sticker, { status: 201 })

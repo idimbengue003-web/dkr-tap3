@@ -80,6 +80,11 @@ export default function ConfigurePage() {
   // Pendant ce court délai, on reste sur l'écran de chargement pour éviter
   // de flasher le formulaire en dessous de la redirection.
   const [redirecting, setRedirecting] = useState(false)
+  // Mode template : si le sticker scanné est un template, la soumission crée
+  // un NOUVEAU sticker au lieu de modifier le template. On garde le slug du
+  // nouveau sticker pour l'afficher dans l'écran de succès.
+  const [isTemplate, setIsTemplate] = useState(false)
+  const [newStickerSlug, setNewStickerSlug] = useState('')
 
   // Charger les infos du sticker
   useEffect(() => {
@@ -89,6 +94,15 @@ export default function ConfigurePage() {
         return res.json()
       })
       .then((data) => {
+        // Si le sticker est un template, on NE redirige pas même s'il a une
+        // URL (un template ne devrait pas en avoir, mais par sécurité).
+        // On affiche toujours la page configure.
+        if (data.isTemplate) {
+          setIsTemplate(true)
+          setSticker(data)
+          setLoading(false)
+          return
+        }
         if (data.targetUrl) {
           // Rediriger vers l'URL cible — on reste en mode "redirecting"
           // pour ne pas afficher le formulaire pendant la redirection.
@@ -151,10 +165,16 @@ export default function ConfigurePage() {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || 'Échec de la sauvegarde')
       }
+      const data = await res.json()
       // On mémorise l'URL finale (avec https://) pour l'écran de succès.
       // Sinon le bouton "Tester le lien" pointerait vers une URL relative.
       setSavedUrl(finalUrl)
       setUrl(finalUrl) // synchronise aussi l'affichage
+      // Si l'API a créé un nouveau sticker (mode template), on récupère son slug
+      // pour l'afficher dans l'écran de succès.
+      if (data.templateMode && data.slug) {
+        setNewStickerSlug(data.slug)
+      }
       setSaved(true)
     } catch (e) {
       setUrlError((e as Error).message)
@@ -184,6 +204,41 @@ export default function ConfigurePage() {
   }
 
   if (saved) {
+    // Mode template : un nouveau sticker a été créé dans l'admin avec l'URL
+    // du client. Le sticker physique scanné reste un template "ouvert".
+    if (isTemplate) {
+      return (
+        <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-4">
+          <div className="max-w-md text-center">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-emerald-500 flex items-center justify-center">
+              <Check size={40} className="text-black" />
+            </div>
+            <h1 className="text-3xl font-bold mb-3">C'est enregistré ! 🎉</h1>
+            <p className="text-zinc-400 mb-2">Votre lien a bien été transmis.</p>
+            <p className="text-zinc-500 text-sm mb-6">
+              Vous pouvez tester votre lien ci-dessous :
+            </p>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-3 mb-6">
+              <p className="text-emerald-400 text-sm break-all">{savedUrl}</p>
+            </div>
+            <a
+              href={savedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 text-black font-semibold hover:bg-emerald-400"
+            >
+              <ExternalLink size={18} />
+              Tester le lien
+            </a>
+            {newStickerSlug && (
+              <p className="text-xs text-zinc-600 mt-6">
+                Référence sticker : <code className="text-zinc-400">{newStickerSlug}</code>
+              </p>
+            )}
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-4">
         <div className="max-w-md text-center">
@@ -251,6 +306,9 @@ export default function ConfigurePage() {
               <p className="text-sm font-medium truncate">{sticker.label || 'Carte QR DKR TAP'}</p>
               <p className="text-xs text-zinc-500 font-mono truncate">#{slug}</p>
             </div>
+            {isTemplate && (
+              <span className="text-[11px] text-emerald-400/80 shrink-0">auto</span>
+            )}
           </div>
         )}
 
