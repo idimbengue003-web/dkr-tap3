@@ -50,6 +50,7 @@ import {
   Globe,
   StickyNote,
   LogOut,
+  Layers,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { BrandedQR, NETWORK_LOGO_PATHS } from '@/components/branded-qr'
@@ -261,6 +262,8 @@ export default function Home() {
   const [qrOpen, setQrOpen] = useState(false)
   // Modal scanner QR code (pour édition rapide d'un sticker physique)
   const [scannerOpen, setScannerOpen] = useState(false)
+  // Modal création en masse (label + quantité → N stickers + page impression)
+  const [bulkOpen, setBulkOpen] = useState(false)
   // Modal assistant IA (aide création/personnalisation cartes)
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -1246,6 +1249,16 @@ export default function Home() {
               <span className="sm:hidden sr-only">Nouveau sticker</span>
             </Button>
             <Button
+              onClick={() => setBulkOpen(true)}
+              variant="outline"
+              size="sm"
+              className="shrink-0 hidden sm:inline-flex"
+              title="Créer plusieurs stickers d'un coup + page d'impression"
+            >
+              <Layers size={14} className="mr-1.5" />
+              Création en masse
+            </Button>
+            <Button
               onClick={handleLogout}
               variant="ghost"
               size="icon"
@@ -2084,6 +2097,26 @@ export default function Home() {
 
       {/* Modal Assistant IA (chat + génération d'images) */}
       <AIAssistantModal open={aiAssistantOpen} onOpenChange={setAiAssistantOpen} />
+
+      {/* Modal création en masse — N stickers vierges + page impression */}
+      <BulkCreateDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        onCreated={(slugs) => {
+          // Stocker les slugs en sessionStorage (au cas où l'URL serait trop longue)
+          try {
+            sessionStorage.setItem('bulk-print-slugs', JSON.stringify(slugs))
+          } catch {}
+          // Et aussi dans l'URL pour partageabilité
+          const slugsParam = slugs.join(',')
+          // Limiter la longueur URL — si > 1500 chars, on se base uniquement sur sessionStorage
+          if (slugsParam.length < 1500) {
+            window.location.href = `/admin/print/batch?slugs=${slugsParam}`
+          } else {
+            window.location.href = `/admin/print/batch`
+          }
+        }}
+      />
 
       {/* Confirmation de suppression */}
       <AlertDialog
@@ -3562,5 +3595,157 @@ function Download({ size = 16, className = '' }: { size?: number; className?: st
       <polyline points="7 10 12 15 17 10" />
       <line x1="12" y1="15" x2="12" y2="3" />
     </svg>
+  )
+}
+
+/* ---------------- Modal création en masse ---------------- */
+/* Permet à l'admin de créer N stickers vierges (chacun avec son propre slug
+ * unique) en une seule action, puis d'imprimer tous les QR codes sur une
+ * page A4 (6 QR codes par page). Chaque sticker est indépendant : le
+ * premier scan ouvre /configure, les suivants redirigent vers l'URL.
+ */
+function BulkCreateDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onCreated: (slugs: string[]) => void
+}) {
+  const { toast } = useToast()
+  const [labelPrefix, setLabelPrefix] = useState('')
+  const [qty, setQty] = useState('10')
+  const [customNetwork, setCustomNetwork] = useState<'auto' | 'google' | 'tiktok' | 'instagram' | 'whatsapp' | 'youtube' | 'facebook' | 'snapchat' | 'none'>('auto')
+  const [creating, setCreating] = useState(false)
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const count = parseInt(qty, 10)
+    if (!Number.isFinite(count) || count < 1 || count > 500) {
+      toast({ variant: 'destructive', title: 'Quantité invalide', description: 'Entre 1 et 500.' })
+      return
+    }
+    if (!labelPrefix.trim()) {
+      toast({ variant: 'destructive', title: 'Label requis', description: 'Donne un préfixe pour identifier ce batch.' })
+      return
+    }
+    setCreating(true)
+    try {
+      const res = await fetch('/api/stickers/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          labelPrefix: labelPrefix.trim(),
+          qty: count,
+          customNetwork: customNetwork === 'auto' ? null : customNetwork,
+          active: true,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Échec de la création')
+      }
+      const data = await res.json()
+      const slugs = (data.created || []).map((s: { slug: string }) => s.slug)
+      toast({
+        title: `${slugs.length} stickers créés`,
+        description: 'Redirection vers la page d\'impression...',
+      })
+      onOpenChange(false)
+      // Reset pour la prochaine fois
+      setLabelPrefix('')
+      setQty('10')
+      setCustomNetwork('auto')
+      onCreated(slugs)
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Erreur', description: (e as Error).message })
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Création en masse</DialogTitle>
+          <DialogDescription>
+            Crée N stickers vierges d&apos;un coup, chacun avec son propre QR code unique. Idéal pour un salon, un événement, une vente — chaque client configure SON URL indépendamment.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleCreate} className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="bulk-label">Label du batch *</Label>
+            <Input
+              id="bulk-label"
+              placeholder="Ex : Stand Salon B26"
+              value={labelPrefix}
+              onChange={(e) => setLabelPrefix(e.target.value)}
+              autoFocus
+            />
+            <p className="text-xs text-zinc-500">
+              Chaque sticker aura comme label &quot;{labelPrefix || 'Stand'}&quot; #1, #2, #3...
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-qty">Quantité (1-500)</Label>
+              <Input
+                id="bulk-qty"
+                type="number"
+                min={1}
+                max={500}
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-network">Réseau</Label>
+              <select
+                id="bulk-network"
+                value={customNetwork}
+                onChange={(e) => setCustomNetwork(e.target.value as typeof customNetwork)}
+                className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              >
+                <option value="auto">Auto (détecté depuis l&apos;URL)</option>
+                <option value="instagram">Instagram</option>
+                <option value="tiktok">TikTok</option>
+                <option value="google">Google Reviews</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="youtube">YouTube</option>
+                <option value="facebook">Facebook</option>
+                <option value="snapchat">Snapchat</option>
+                <option value="none">Aucun</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-900">
+            <strong>Comment ça marche :</strong> après création, tu seras redirigé vers une page d&apos;impression avec tous les QR codes en grille (6 par page A4). Imprime-les, distribue-les — chaque client scanne le sien, configure son URL, et les scans suivants redirigeront vers cette URL.
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={creating}>
+              Annuler
+            </Button>
+            <Button type="submit" disabled={creating || !labelPrefix.trim()}>
+              {creating ? (
+                <>
+                  <Loader2 size={14} className="mr-1.5 animate-spin" />
+                  Création...
+                </>
+              ) : (
+                <>
+                  <Layers size={14} className="mr-1.5" />
+                  Créer et imprimer
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
