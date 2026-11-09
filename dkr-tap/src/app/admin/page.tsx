@@ -27,7 +27,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
+// NB: ScrollArea n'est plus utilisé — on emploie un div simple avec
+// overflow-y-auto, plus fiable que le ScrollArea de Radix qui ne
+// contraignait pas bien max-h et laissait les cartes déborder sur la
+// section suivante.
 import { Toaster } from '@/components/ui/toaster'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -1343,11 +1346,13 @@ export default function Home() {
                 </p>
               </div>
             ) : (
-              <ScrollArea className="max-h-[70vh]">
-                {/* Espacement entre lignes : on remplace divide-y par des cartes
-                    individuelles avec leur propre padding, ce qui donne plus
-                    d'air et rend chaque ligne plus lisible (surtout sur mobile). */}
-                <div className="flex flex-col gap-2.5">
+              // Plain div avec overflow-y-auto — plus fiable que <ScrollArea>
+              // de Radix qui ne contraint pas bien max-h (le Viewport interne
+              // a size-full qui ne résout pas sans height explicite sur le
+              // parent). Sur certains navigateurs, les cartes débordaient sur
+              // la section StatsDetailSection juste en dessous.
+              <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
+                <div className="flex flex-col gap-2.5 p-3">
                   {filtered.map((s) => (
                     <StickerRow
                       key={s.id}
@@ -1363,7 +1368,7 @@ export default function Home() {
                     />
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -3437,8 +3442,8 @@ function StickerRow({
           )}
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 shrink-0">
+        {/* Actions — wrap sur petit écran pour éviter chevauchement horizontal */}
+        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 flex-wrap justify-start sm:justify-end">
           {sticker.targetUrl && (
             <Button
               size="sm"
