@@ -3690,7 +3690,9 @@ function BulkCreateDialog({
   const { toast } = useToast()
   const [labelPrefix, setLabelPrefix] = useState('')
   const [qty, setQty] = useState('10')
-  const [customNetwork, setCustomNetwork] = useState<'auto' | 'google' | 'tiktok' | 'instagram' | 'whatsapp' | 'youtube' | 'facebook' | 'snapchat' | 'none'>('auto')
+  // Réseau par défaut : Instagram (rose/dégradé). 'auto' ne marche pas pour
+  // des stickers vierges car il n'y a pas d'URL à analyser → QR noir.
+  const [customNetwork, setCustomNetwork] = useState<'google' | 'tiktok' | 'instagram' | 'whatsapp' | 'youtube' | 'facebook' | 'snapchat' | 'none'>('instagram')
   const [creating, setCreating] = useState(false)
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -3712,7 +3714,9 @@ function BulkCreateDialog({
         body: JSON.stringify({
           labelPrefix: labelPrefix.trim(),
           qty: count,
-          customNetwork: customNetwork === 'auto' ? null : customNetwork,
+          // Toujours envoyer un réseau spécifique (auto ne marche pas pour
+          // des stickers vierges → QR noir à l'impression).
+          customNetwork: customNetwork === 'none' ? null : customNetwork,
           active: true,
         }),
       })
@@ -3730,7 +3734,7 @@ function BulkCreateDialog({
       // Reset pour la prochaine fois
       setLabelPrefix('')
       setQty('10')
-      setCustomNetwork('auto')
+      setCustomNetwork('instagram')
       onCreated(slugs)
     } catch (e) {
       toast({ variant: 'destructive', title: 'Erreur', description: (e as Error).message })
@@ -3776,23 +3780,25 @@ function BulkCreateDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="bulk-network">Réseau</Label>
+              <Label htmlFor="bulk-network">Couleur du QR *</Label>
               <select
                 id="bulk-network"
                 value={customNetwork}
                 onChange={(e) => setCustomNetwork(e.target.value as typeof customNetwork)}
                 className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm"
               >
-                <option value="auto">Auto (détecté depuis l&apos;URL)</option>
-                <option value="instagram">Instagram</option>
-                <option value="tiktok">TikTok</option>
-                <option value="google">Google Reviews</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="youtube">YouTube</option>
-                <option value="facebook">Facebook</option>
-                <option value="snapchat">Snapchat</option>
-                <option value="none">Aucun</option>
+                <option value="instagram">Instagram (rose/dégradé)</option>
+                <option value="tiktok">TikTok (cyan/magenta)</option>
+                <option value="google">Google Reviews (bleu/rouge)</option>
+                <option value="whatsapp">WhatsApp (vert)</option>
+                <option value="youtube">YouTube (rouge)</option>
+                <option value="facebook">Facebook (bleu)</option>
+                <option value="snapchat">Snapchat (jaune)</option>
+                <option value="none">Noir simple</option>
               </select>
+              <p className="text-[11px] text-zinc-500">
+                Détermine les couleurs du QR code à l&apos;impression.
+              </p>
             </div>
           </div>
 
