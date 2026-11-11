@@ -13,7 +13,7 @@ type Props = {
 }
 
 // Configuration par réseau : couleurs, gradient, style de points
-const NETWORK_STYLES: Record<Exclude<Network, null>, {
+export const NETWORK_STYLES: Record<Exclude<Network, null>, {
   dotsColor: string
   dotsColor2?: string
   cornersColor: string

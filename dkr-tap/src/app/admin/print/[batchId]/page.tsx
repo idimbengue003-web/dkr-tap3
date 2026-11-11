@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { BrandedQR, NETWORK_LOGO_PATHS } from '@/components/branded-qr'
+import { BrandedQR, NETWORK_LOGO_PATHS, NETWORK_STYLES } from '@/components/branded-qr'
 import { getEffectiveNetwork } from '@/lib/sticker-template'
-import { Printer, Loader2, ArrowLeft } from 'lucide-react'
+import { Printer, Loader2, ArrowLeft, Download, FileText, Archive } from 'lucide-react'
+import QRCodeStyling from 'qr-code-styling'
+import JSZip from 'jszip'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
 
@@ -18,6 +20,10 @@ export default function PrintBatchPage() {
   const [stickers, setStickers] = useState<StickerLite[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // États pour les exports
+  const [csvLoading, setCsvLoading] = useState(false)
+  const [zipLoading, setZipLoading] = useState(false)
+  const [zipProgress, setZipProgress] = useState(0)
 
   // Lire les slugs depuis l'URL (?slugs=slug1,slug2,...)
   // ou depuis sessionStorage si on vient du bulk create
@@ -83,6 +89,144 @@ export default function PrintBatchPage() {
     return `${window.location.origin}/api/r/${slug}`
   }
 
+  // Télécharger un blob avec un nom de fichier donné
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  // Construit les options QRCodeStyling (mêmes réglages que le composant BrandedQR)
+  const buildQrOptions = (data: string, network: ReturnType<typeof getEffectiveNetwork>, size: number, logoUrl?: string) => {
+    const style = network ? NETWORK_STYLES[network] : {
+      dotsColor: '#000000',
+      cornersColor: '#000000',
+      cornersSquareColor: '#000000',
+      background: '#ffffff',
+    }
+    return {
+      width: size,
+      height: size,
+      type: 'svg' as const,
+      data,
+      dotsOptions: {
+        type: 'rounded',
+        gradient: style.gradientType ? {
+          type: style.gradientType,
+          rotation: style.gradientRotation ?? 0,
+          colorStops: [
+            { offset: 0, color: style.dotsColor },
+            { offset: 1, color: style.dotsColor2 || style.dotsColor },
+          ],
+        } : undefined,
+        color: style.gradientType ? undefined : style.dotsColor,
+      },
+      cornersSquareOptions: {
+        type: 'extra-rounded',
+        color: style.cornersSquareColor,
+      },
+      cornersDotOptions: {
+        type: 'dot',
+        color: style.cornersColor,
+      },
+      backgroundOptions: {
+        color: style.background,
+      },
+      image: logoUrl || undefined,
+      imageOptions: {
+        crossOrigin: 'anonymous',
+        margin: 5,
+        imageSize: 0.4,
+        hideBackgroundDots: true,
+      },
+      qrOptions: {
+        errorCorrectionLevel: 'H' as const,
+      },
+    }
+  }
+
+  // Export CSV — slug, publicUrl, label (compatible Canva Bulk Create)
+  const handleExportCsv = () => {
+    setCsvLoading(true)
+    try {
+      const rows = [
+        // En-têtes Canva Bulk Create
+        ['slug', 'publicUrl', 'label', 'qrImageUrl'],
+        ...stickers.map((s) => [
+          s.slug,
+          getPublicUrl(s.slug),
+          s.label || '',
+          `${typeof window !== 'undefined' ? window.location.origin : ''}/api/r/${s.slug}`,
+        ]),
+      ]
+      // CSV simple avec virgules + guillemets pour les champs contenant des virgules
+      const csv = rows
+        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+      downloadBlob(blob, `stickers-batch-${Date.now()}.csv`)
+    } finally {
+      setCsvLoading(false)
+    }
+  }
+
+  // Export ZIP de PNG individuels — 1 fichier PNG par sticker
+  const handleExportZip = async () => {
+    setZipLoading(true)
+    setZipProgress(0)
+    try {
+      const zip = new JSZip()
+      const folder = zip.folder('stickers-qr')
+      if (!folder) throw new Error('ZIP folder creation failed')
+
+      // Générer chaque QR en PNG (1024px pour qualité impression)
+      for (let i = 0; i < stickers.length; i++) {
+        const s = stickers[i]
+        const net = getEffectiveNetwork(s.targetUrl, s.customNetwork ?? null)
+        const logoUrl = net ? NETWORK_LOGO_PATHS[net] : undefined
+        const options = buildQrOptions(getPublicUrl(s.slug), net, 1024, logoUrl)
+        const qr = new QRCodeStyling(options)
+        const blob = await qr.getRawData('png')
+        if (blob) {
+          // Nom de fichier : index_slug.png pour faciliter le tri
+          const idx = String(i + 1).padStart(3, '0')
+          folder.file(`${idx}_${s.slug}.png`, blob)
+        }
+        setZipProgress(Math.round(((i + 1) / stickers.length) * 100))
+        // Yield au thread pour pas figer l'UI
+        await new Promise((r) => setTimeout(r, 0))
+      }
+
+      // Ajouter un README dans le ZIP
+      const readme = `DKR TAP — Batch de ${stickers.length} stickers QR
+
+Chaque fichier PNG contient un QR code unique qui pointe vers :
+  https://www.dkrtap.site/api/r/<slug>
+
+Quand un client scanne le QR :
+  1. Il arrive sur la page /configure/<slug>
+  2. Il saisit son URL (Instagram, TikTok, etc.)
+  3. Il valide → l'URL est enregistrée pour CE slug
+  4. Les scans suivants redirigent vers son URL
+
+Liste des stickers inclus :
+${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s.label || '(sans label)'}`).join('\n')}
+`
+      folder.file('README.txt', readme)
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      downloadBlob(zipBlob, `stickers-qr-${stickers.length}-${Date.now()}.zip`)
+    } finally {
+      setZipLoading(false)
+      setZipProgress(0)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -105,7 +249,7 @@ export default function PrintBatchPage() {
   return (
     <div className="min-h-screen bg-zinc-100">
       {/* Barre d'actions — masquée à l'impression */}
-      <div className="no-print sticky top-0 z-10 bg-white border-b border-zinc-200 px-4 py-3 flex items-center justify-between gap-3">
+      <div className="no-print sticky top-0 z-10 bg-white border-b border-zinc-200 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
         <a
           href="/admin"
           className="inline-flex items-center gap-1.5 text-sm text-zinc-600 hover:text-zinc-900"
@@ -116,13 +260,45 @@ export default function PrintBatchPage() {
         <div className="text-sm text-zinc-600">
           <span className="font-semibold text-zinc-900">{stickers.length}</span> stickers à imprimer
         </div>
-        <button
-          onClick={() => window.print()}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-400"
-        >
-          <Printer size={14} />
-          Imprimer
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Export CSV pour Canva Bulk Create */}
+          <button
+            onClick={handleExportCsv}
+            disabled={csvLoading || stickers.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-zinc-200 bg-white text-zinc-700 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Exporter un CSV (compatible Canva Bulk Create)"
+          >
+            <FileText size={14} />
+            CSV
+          </button>
+          {/* Export ZIP de PNG individuels */}
+          <button
+            onClick={handleExportZip}
+            disabled={zipLoading || stickers.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-zinc-200 bg-white text-zinc-700 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Télécharger un ZIP avec 1 PNG par sticker (1024px)"
+          >
+            {zipLoading ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                {zipProgress}%
+              </>
+            ) : (
+              <>
+                <Archive size={14} />
+                ZIP (PNG)
+              </>
+            )}
+          </button>
+          {/* Imprimer / PDF */}
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-400"
+          >
+            <Printer size={14} />
+            Imprimer / PDF
+          </button>
+        </div>
       </div>
 
       {/* Grille de QR codes — visible à l'écran et à l'impression */}
