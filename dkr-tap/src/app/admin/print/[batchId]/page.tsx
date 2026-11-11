@@ -102,7 +102,9 @@ export default function PrintBatchPage() {
   }
 
   // Construit les options QRCodeStyling (mêmes réglages que le composant BrandedQR)
-  const buildQrOptions = (data: string, network: ReturnType<typeof getEffectiveNetwork>, size: number, logoUrl?: string) => {
+  // ⚠️ Pour l'export PNG on UTILISE type='canvas' (pas 'svg') car la conversion
+  // SVG→PNG perd les gradients → QR noir. Canvas préserve les couleurs.
+  const buildQrOptions = (data: string, network: ReturnType<typeof getEffectiveNetwork>, size: number, logoUrl?: string, type: 'svg' | 'canvas' = 'canvas') => {
     const style = network ? NETWORK_STYLES[network] : {
       dotsColor: '#000000',
       cornersColor: '#000000',
@@ -112,7 +114,7 @@ export default function PrintBatchPage() {
     return {
       width: size,
       height: size,
-      type: 'svg' as const,
+      type,
       data,
       dotsOptions: {
         type: 'rounded',
@@ -368,6 +370,17 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
         }
 
         @media print {
+          /* ⚠️ Force les couleurs (gradients, backgrounds) à l'impression.
+             Par défaut les navigateurs désactivent les backgrounds → QR noir. */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          html, body {
+            background: white !important;
+          }
+
           /* Cache la barre d'actions à l'impression */
           .no-print { display: none !important; }
 
