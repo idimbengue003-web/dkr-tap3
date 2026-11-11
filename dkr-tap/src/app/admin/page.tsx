@@ -51,6 +51,8 @@ import {
   StickyNote,
   LogOut,
   Layers,
+  Save,
+  Check,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { BrandedQR, NETWORK_LOGO_PATHS } from '@/components/branded-qr'
@@ -280,6 +282,12 @@ export default function Home() {
   const [qrPosition, setQrPosition] = useState<{ x: number; y: number }>({ x: 0.85, y: 0.85 })
   // Taille du QR code en % du min(w, h) — utilisée pour le preview et le download
   const [qrSize, setQrSize] = useState<number>(0.25)
+  // "Dirty" = modifications non enregistrées dans le modal QR design.
+  // On n'auto-save plus sur chaque drag/slider/preset (ça causait des
+  // glitches visuels où le QR semblait "bouger"). L'utilisateur clique
+  // explicitement sur "Enregistrer" pour persister les changements.
+  const [designDirty, setDesignDirty] = useState(false)
+  const [designSaving, setDesignSaving] = useState(false)
   // Texte optionnel superposé à l'image (draggable comme le QR)
   const [textOverlay, setTextOverlay] = useState<{
     content: string
@@ -736,6 +744,8 @@ export default function Home() {
     setQrPosition(s.qrPosition ?? { x: 0.85, y: 0.85 })
     setQrSize(s.qrSize ?? 0.25)
     setTextOverlay(s.textOverlay ?? null)
+    // Reset dirty : pas de modifications non enregistrées à l'ouverture
+    setDesignDirty(false)
     setQrOpen(true)
 
     // Tenter de charger l'image depuis l'API (404 si aucune image)
@@ -910,17 +920,49 @@ export default function Home() {
     void saveStickerField({ textOverlay })
   }
 
-  // Generic save sticker field (qrPosition, qrSize, textOverlay) — silencieux
-  const saveStickerField = async (updates: Record<string, unknown>) => {
+  // Marque le design comme "dirty" (modifications non enregistrées).
+  // Ne sauvegarde PAS automatiquement — l'utilisateur clique sur "Enregistrer"
+  // en bas du modal pour persister tous les champs d'un coup.
+  const saveStickerField = (_updates: Record<string, unknown>) => {
+    setDesignDirty(true)
+  }
+
+  // Sauvegarde MANUELLE de tout le design (qrPosition, qrSize, textOverlay,
+  // stickerTheme) en un seul appel PUT. Déclenchée par le bouton "Enregistrer".
+  const handleSaveDesign = async () => {
     if (!qrSticker) return
+    setDesignSaving(true)
     try {
-      await fetch(`/api/stickers/${qrSticker.id}`, {
+      const res = await fetch(`/api/stickers/${qrSticker.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({
+          qrPosition,
+          qrSize,
+          textOverlay,
+          stickerTheme,
+        }),
       })
-    } catch {
-      // Silencieux : pas grave si la save échoue ponctuellement
+      if (res.status === 401) {
+        setAuthState({ status: 'unauthenticated' })
+        toast({ variant: 'destructive', title: 'Session expirée' })
+        return
+      }
+      if (!res.ok) throw new Error('Erreur lors de la sauvegarde')
+      // Mettre à jour qrSticker local pour que la prochaine ouverture
+      // du modal parte des valeurs sauvegardées (et non des anciennes).
+      const updated = await res.json()
+      setQrSticker(updated)
+      setDesignDirty(false)
+      toast({ title: 'Design enregistré' })
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: e instanceof Error ? e.message : 'Erreur inconnue',
+      })
+    } finally {
+      setDesignSaving(false)
     }
   }
 
@@ -2104,6 +2146,39 @@ export default function Home() {
                   <Download size={14} className="mr-1.5" />
                   Télécharger
                 </Button>
+              </div>
+
+              {/* Bouton Enregistrer — save manuelle de tout le design.
+                  Plus d'auto-save sur chaque drag/slider/preset → le QR
+                  ne "bouge" plus après édition. */}
+              <div className="mt-3 w-full">
+                <Button
+                  onClick={handleSaveDesign}
+                  disabled={designSaving || !designDirty}
+                  className="w-full"
+                >
+                  {designSaving ? (
+                    <>
+                      <Loader2 size={14} className="mr-1.5 animate-spin" />
+                      Enregistrement...
+                    </>
+                  ) : designDirty ? (
+                    <>
+                      <Save size={14} className="mr-1.5" />
+                      Enregistrer le design
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} className="mr-1.5" />
+                      Design enregistré
+                    </>
+                  )}
+                </Button>
+                {designDirty && (
+                  <p className="text-[11px] text-amber-600 mt-1.5 text-center">
+                    Modifies non enregistrés — clique pour sauvegarder.
+                  </p>
+                )}
               </div>
             </div>
           )}
