@@ -264,6 +264,9 @@ export default function Home() {
   const [scannerOpen, setScannerOpen] = useState(false)
   // Modal création en masse (label + quantité → N stickers + page impression)
   const [bulkOpen, setBulkOpen] = useState(false)
+  // Confirmation "Tout supprimer" (cleanup admin)
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false)
+  const [deleteAllLoading, setDeleteAllLoading] = useState(false)
   // Modal assistant IA (aide création/personnalisation cartes)
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -689,6 +692,36 @@ export default function Home() {
         variant: 'destructive',
         title: 'Impossible de copier',
       })
+    }
+  }
+
+  // ⚠️ Tout supprimer : cleanup complet des stickers (avant un nouveau batch)
+  const handleDeleteAll = async () => {
+    setDeleteAllLoading(true)
+    try {
+      const res = await fetch('/api/stickers/all', { method: 'DELETE' })
+      if (res.status === 401) {
+        setDeleteAllOpen(false)
+        setAuthState({ status: 'unauthenticated' })
+        toast({ variant: 'destructive', title: 'Session expirée' })
+        return
+      }
+      if (!res.ok) throw new Error('Erreur lors de la suppression')
+      const data = await res.json()
+      toast({
+        title: 'Stickers supprimés',
+        description: `${data.deleted} stickers effacés de la base.`,
+      })
+      setDeleteAllOpen(false)
+      await fetchStickers()
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: e instanceof Error ? e.message : 'Erreur inconnue',
+      })
+    } finally {
+      setDeleteAllLoading(false)
     }
   }
 
@@ -1257,6 +1290,16 @@ export default function Home() {
             >
               <Layers size={14} className="mr-1.5" />
               Création en masse
+            </Button>
+            <Button
+              onClick={() => setDeleteAllOpen(true)}
+              variant="ghost"
+              size="sm"
+              className="shrink-0 hidden sm:inline-flex text-red-600 hover:text-red-700 hover:bg-red-50"
+              title="Supprimer TOUS les stickers (cleanup)"
+            >
+              <Trash2 size={14} className="mr-1.5" />
+              Tout supprimer
             </Button>
             <Button
               onClick={handleLogout}
@@ -2118,7 +2161,7 @@ export default function Home() {
         }}
       />
 
-      {/* Confirmation de suppression */}
+      {/* Confirmation de suppression d'un sticker unique */}
       <AlertDialog
         open={!!deleteId}
         onOpenChange={(o) => !o && setDeleteId(null)}
@@ -2138,6 +2181,37 @@ export default function Home() {
               className="bg-red-600 hover:bg-red-700 text-white"
             >
               Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmation "Tout supprimer" — cleanup complet avant un nouveau batch */}
+      <AlertDialog
+        open={deleteAllOpen}
+        onOpenChange={(o) => !o && setDeleteAllOpen(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer TOUS les stickers ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              ⚠️ Cette action est <strong>irréversible</strong> et va supprimer
+              tous les stickers de la base (stickers configurés, vierges,
+              templates, auto-créés), tous les scans et toutes les images
+              uploadées. Les commandes ne sont pas affectées.
+              <br /><br />
+              À utiliser avant de repartir de zéro (nouveau batch, nouvelle
+              session de test, etc.).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteAllLoading}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAll}
+              disabled={deleteAllLoading}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleteAllLoading ? 'Suppression...' : 'Oui, tout supprimer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

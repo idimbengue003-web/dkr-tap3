@@ -413,6 +413,46 @@ export const db = {
   },
 
   /**
+   * Supprime TOUS les stickers (admin cleanup). Utilisé pour repartir de zéro
+   * après une phase de test. Retourne le nombre de stickers supprimés.
+   *
+   * Attention : cette fonction supprime aussi les scans log et les images
+   * uploadées. Les commandes ne sont pas affectées (elles restent en base).
+   */
+  async deleteAllStickers(): Promise<number> {
+    const slugs = (await store.get<string[]>('stickers:list')) || []
+    if (slugs.length === 0) return 0
+
+    // Batch : récupérer tous les stickers pour avoir leurs id
+    const stickerDataList = await store.mget<Omit<Sticker, 'scanCount'>>(
+      ...slugs.map((s) => `sticker:${s}`)
+    )
+
+    // Construire la liste de toutes les clés à supprimer
+    const keysToDelete: string[] = []
+    for (let i = 0; i < slugs.length; i++) {
+      const slug = slugs[i]
+      const data = stickerDataList[i]
+      keysToDelete.push(`sticker:${slug}`)
+      keysToDelete.push(`scans:${slug}`)
+      keysToDelete.push(`stickerImage:${slug}`)
+      if (data?.id) keysToDelete.push(`stickerId:${data.id}`)
+    }
+    // La liste des slugs elle-même
+    keysToDelete.push('stickers:list')
+    keysToDelete.push('stickers:by_created_members')
+    // Les logs de scans (liste Redis)
+    keysToDelete.push('scans:log')
+
+    // Supprimer tout en un seul appel
+    if (keysToDelete.length > 0) {
+      await store.del(...keysToDelete)
+    }
+
+    return slugs.length
+  },
+
+  /**
    * Récupère l'image (data URL base64) uploadée pour un sticker.
    * Retourne null si aucune image n'est stockée.
    * Stockée dans une clé séparée `stickerImage:<slug>` pour ne pas
