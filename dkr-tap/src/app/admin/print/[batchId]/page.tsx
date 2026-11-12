@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { BrandedQR, NETWORK_LOGO_PATHS, NETWORK_STYLES } from '@/components/branded-qr'
 import { getEffectiveNetwork } from '@/lib/sticker-template'
-import { Printer, Loader2, ArrowLeft, Download, FileText, Archive, FileDown } from 'lucide-react'
+import { Printer, Loader2, ArrowLeft, Download, FileText, Archive, FileDown, ImageIcon, AlertCircle, CheckCircle2 } from 'lucide-react'
 import QRCodeStyling from 'qr-code-styling'
 import JSZip from 'jszip'
 import { jsPDF } from 'jspdf'
@@ -11,10 +11,39 @@ import { jsPDF } from 'jspdf'
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
 
 type StickerLite = {
+  id: string
   slug: string
   label: string | null
   targetUrl: string | null
   customNetwork?: string | null
+  // Champs design (pour rendre le sticker complet dans le PDF)
+  stickerTheme?: 'white' | 'black' | 'transparent' | null
+  qrPosition?: { x: number; y: number }
+  qrSize?: number
+  textOverlay?: {
+    content: string
+    x: number
+    y: number
+    size: number
+  } | null
+}
+
+// Type pour le template de design détecté
+type DesignTemplate = {
+  stickerId: string
+  slug: string
+  label: string | null
+  // Image de fond chargée (HTMLImageElement prête à dessiner sur canvas)
+  bgImage: HTMLImageElement
+  qrPosition: { x: number; y: number }
+  qrSize: number
+  textOverlay: {
+    content: string
+    x: number
+    y: number
+    size: number
+  } | null
+  theme: 'white' | 'black' | 'transparent'
 }
 
 export default function PrintBatchPage() {
@@ -27,64 +56,147 @@ export default function PrintBatchPage() {
   const [zipProgress, setZipProgress] = useState(0)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [pdfProgress, setPdfProgress] = useState(0)
+  // Template de design détecté (le 1er sticker du batch qui a une image uploadée)
+  const [designTemplate, setDesignTemplate] = useState<DesignTemplate | null>(null)
+  const [templateDetecting, setTemplateDetecting] = useState(false)
+  const [templateStatus, setTemplateStatus] = useState<'idle' | 'detecting' | 'found' | 'none'>('idle')
 
   // Lire les slugs depuis l'URL (?slugs=slug1,slug2,...)
   // ou depuis sessionStorage si on vient du bulk create
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const slugsParam = params.get('slugs')
-
-    if (slugsParam) {
-      const slugs = slugsParam.split(',').filter(Boolean)
-      // Récupérer les infos de chaque sticker en parallèle
-      Promise.all(
-        slugs.map((s) =>
-          fetch(`/api/stickers/by-slug/${s}`)
-            .then((r) => (r.ok ? r.json() : null))
-            .catch(() => null)
-        )
-      )
-        .then((results) => {
-          const valid = results.filter(Boolean) as StickerLite[]
-          if (valid.length === 0) {
-            setError('Aucun sticker trouvé pour ce batch.')
-          } else {
-            setStickers(valid)
+    const slugs: string[] = slugsParam
+      ? slugsParam.split(',').filter(Boolean)
+      : (() => {
+          try {
+            const stored = sessionStorage.getItem('bulk-print-slugs')
+            return stored ? (JSON.parse(stored) as string[]) : []
+          } catch {
+            return []
           }
+        })()
+
+    if (slugs.length === 0) {
+      setError('Aucun sticker à imprimer.')
+      setLoading(false)
+      return
+    }
+
+    // Fetch via /api/stickers (endpoint admin qui renvoie les champs design :
+    // qrPosition, qrSize, textOverlay, stickerTheme) — l'endpoint public
+    // by-slug ne renvoie que les champs publics, insuffisants pour rendre
+    // le design complet dans le PDF.
+    fetch('/api/stickers', { cache: 'no-store' })
+      .then((r) => {
+        if (r.status === 401) {
+          setError('Session expirée. Reconnecte-toi depuis /admin puis revient sur cette page.')
           setLoading(false)
-        })
-        .catch(() => {
-          setError('Erreur lors du chargement.')
-          setLoading(false)
-        })
-    } else {
-      // Fallback : sessionStorage
-      try {
-        const stored = sessionStorage.getItem('bulk-print-slugs')
-        if (stored) {
-          const slugs = JSON.parse(stored) as string[]
-          // Re-fetch
-          Promise.all(
-            slugs.map((s) =>
-              fetch(`/api/stickers/by-slug/${s}`)
-                .then((r) => (r.ok ? r.json() : null))
-                .catch(() => null)
-            )
-          ).then((results) => {
-            const valid = results.filter(Boolean) as StickerLite[]
-            setStickers(valid)
-            setLoading(false)
-          })
-        } else {
-          setError('Aucun sticker à imprimer.')
-          setLoading(false)
+          return null
         }
-      } catch {
-        setError('Session expirée.')
+        if (!r.ok) throw new Error('Erreur réseau')
+        return r.json() as Promise<StickerLite[]>
+      })
+      .then((all) => {
+        if (!all) return
+        // Filtrer en gardant l'ordre des slugs de l'URL
+        const valid = slugs
+          .map((slug) => all.find((s) => s.slug === slug))
+          .filter(Boolean) as StickerLite[]
+        if (valid.length === 0) {
+          setError('Aucun sticker trouvé pour ce batch.')
+        } else {
+          setStickers(valid)
+        }
         setLoading(false)
+      })
+      .catch(() => {
+        setError('Erreur lors du chargement.')
+        setLoading(false)
+      })
+  }, [])
+
+  // Helper : charger une image depuis une URL → HTMLImageElement
+  const loadImageEl = (src: string): Promise<HTMLImageElement> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => resolve(img)
+      img.onerror = () => reject(new Error(`Failed to load image: ${src}`))
+      img.src = src
+    })
+  }
+
+  // Helper : Blob → DataURL (pour jsPDF.addImage)
+  const blobToDataURL = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  }
+
+  // Après chargement des stickers : détecter automatiquement un template de
+  // design en sondant l'endpoint image de chaque sticker (en parallèle).
+  // Le 1er qui a une image uploadée devient le template appliqué à TOUS les
+  // QR codes du PDF.
+  useEffect(() => {
+    if (stickers.length === 0) return
+    setTemplateDetecting(true)
+    setTemplateStatus('detecting')
+
+    let cancelled = false
+    // Sondage parallèle — on prend le 1er (par ordre d'index) qui a une image
+    const probe = async (s: StickerLite, index: number) => {
+      try {
+        const res = await fetch(`/api/stickers/${s.id}/image`, { cache: 'no-store' })
+        if (!res.ok) return null
+        const blob = await res.blob()
+        if (blob.size === 0) return null
+        const url = URL.createObjectURL(blob)
+        const bgImage = await loadImageEl(url)
+        // Trouvé — retourne le template + son index pour garder l'ordre
+        return { sticker: s, bgImage, index, objectUrl: url }
+      } catch {
+        return null
       }
     }
-  }, [])
+
+    // Lancer tous les sondages en parallèle
+    Promise.all(stickers.map((s, i) => probe(s, i)))
+      .then((results) => {
+        if (cancelled) return
+        // Premier résultat non-null (par ordre d'index)
+        const found = results.filter(Boolean).sort((a, b) => a!.index - b!.index)[0]
+        if (found) {
+          const { sticker, bgImage } = found
+          setDesignTemplate({
+            stickerId: sticker.id,
+            slug: sticker.slug,
+            label: sticker.label,
+            bgImage,
+            qrPosition: sticker.qrPosition ?? { x: 0.85, y: 0.85 },
+            qrSize: sticker.qrSize ?? 0.25,
+            textOverlay: sticker.textOverlay ?? null,
+            theme: sticker.stickerTheme ?? 'white',
+          })
+          setTemplateStatus('found')
+        } else {
+          setTemplateStatus('none')
+        }
+        setTemplateDetecting(false)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setTemplateStatus('none')
+        setTemplateDetecting(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [stickers])
 
   // URL publique du QR (celle qui sera scannée)
   const getPublicUrl = (slug: string) => {
@@ -255,10 +367,6 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
       const rows = 3
       const cellW = usableW / cols
       const cellH = usableH / rows
-      // Taille du QR dans chaque cellule (mm) — 60mm pour rester lisible
-      const qrSizeMm = 58
-      // Hauteur réservée au texte (label + slug) sous le QR
-      const textZoneH = cellH - qrSizeMm - 6
 
       for (let i = 0; i < stickers.length; i++) {
         const s = stickers[i]
@@ -280,36 +388,75 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
         pdf.roundedRect(cellX, cellY, cellW, cellH, 2, 2, 'S')
         pdf.setLineDashPattern([], 0)
 
-        // Générer le QR en PNG haute résolution (canvas préserve les gradients)
+        // Générer le QR PNG haute résolution pour CE sticker (chaque sticker
+        // a son propre QR unique, même si le design vient du template)
         const net = getEffectiveNetwork(s.targetUrl, s.customNetwork ?? null)
         const logoUrl = net ? NETWORK_LOGO_PATHS[net] : undefined
         const options = buildQrOptions(getPublicUrl(s.slug), net, 1024, logoUrl)
         const qr = new QRCodeStyling(options)
-        const blob = await qr.getRawData('png')
-        if (blob) {
-          const dataUrl = await blobToDataURL(blob)
-          // Centrer le QR horizontalement dans la cellule
-          const qrX = cellX + (cellW - qrSizeMm) / 2
-          const qrY = cellY + 4 // petite marge top dans la cellule
-          pdf.addImage(dataUrl, 'PNG', qrX, qrY, qrSizeMm, qrSizeMm, undefined, 'FAST')
+        const qrBlob = await qr.getRawData('png')
+
+        // Si un template de design est détecté → rendre le sticker complet
+        // (background image + QR + text overlay) sur canvas.
+        // Sinon → QR seul (fallback).
+        let imageDataUrl: string | null = null
+        let imageAspect = 1 // width / height
+
+        if (designTemplate && qrBlob) {
+          const qrDataUrl = await blobToDataURL(qrBlob)
+          imageDataUrl = await renderStickerDesign(
+            designTemplate.bgImage,
+            qrDataUrl,
+            designTemplate.qrPosition,
+            designTemplate.qrSize,
+            designTemplate.textOverlay,
+            designTemplate.theme
+          )
+          imageAspect =
+            designTemplate.bgImage.naturalWidth / designTemplate.bgImage.naturalHeight
+        } else if (qrBlob) {
+          imageDataUrl = await blobToDataURL(qrBlob)
+          imageAspect = 1 // QR est carré
         }
 
-        // Texte sous le QR : label (gras) + slug (mono)
-        const textX = cellX + cellW / 2 // centré
-        const labelY = cellY + 4 + qrSizeMm + 5
-        const label = s.label || s.slug
-        pdf.setFont('helvetica', 'bold')
-        pdf.setFontSize(10)
-        // SplitText gère les labels longs (retour à la ligne auto)
-        const labelLines = pdf.splitTextToSize(label, cellW - 8)
-        pdf.text(labelLines, textX, labelY, { align: 'center' })
+        // Placer l'image dans la cellule (fit + center, préserver l'aspect ratio)
+        if (imageDataUrl) {
+          const padding = 4
+          // Réserver de l'espace en bas pour le slug (toujours) + label (si pas de design)
+          const slugZoneH = designTemplate ? 6 : 18
+          const availW = cellW - padding * 2
+          const availH = cellH - padding * 2 - slugZoneH
+          let imgW = availW
+          let imgH = imgW / imageAspect
+          if (imgH > availH) {
+            imgH = availH
+            imgW = imgH * imageAspect
+          }
+          const imgX = cellX + (cellW - imgW) / 2
+          const imgY = cellY + padding + (availH - imgH) / 2 // centrer verticalement dans la zone dispo
+          pdf.addImage(imageDataUrl, 'PNG', imgX, imgY, imgW, imgH, undefined, 'FAST')
+        }
 
-        // Slug en dessous (mono, gris)
-        const slugLines = labelLines.length
+        // Slug en dessous (identification pour la découpe — toujours affiché)
+        const textX = cellX + cellW / 2
+        const slugY = cellY + cellH - 3
         pdf.setFont('courier', 'normal')
-        pdf.setFontSize(8)
-        pdf.setTextColor(90, 90, 90)
-        pdf.text(s.slug, textX, labelY + slugLines * 4 + 2, { align: 'center' })
+        pdf.setFontSize(7)
+        pdf.setTextColor(120, 120, 120)
+        pdf.text(s.slug, textX, slugY, { align: 'center' })
+
+        // Si PAS de design template : ajouter aussi le label sous le QR
+        // (en mode design, le label/texte est déjà dans l'image rendue)
+        if (!designTemplate) {
+          const labelY = slugY - 5
+          pdf.setFont('helvetica', 'bold')
+          pdf.setFontSize(9)
+          pdf.setTextColor(40, 40, 40)
+          const labelLines = pdf.splitTextToSize(s.label || s.slug, cellW - 8)
+          // Une seule ligne pour éviter de chevaucher le slug
+          pdf.text(labelLines[0] || '', textX, labelY, { align: 'center' })
+        }
+
         pdf.setTextColor(0, 0, 0) // reset
 
         setPdfProgress(Math.round(((i + 1) / stickers.length) * 100))
@@ -325,7 +472,7 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
         pdf.setFontSize(8)
         pdf.setTextColor(150, 150, 150)
         pdf.text(
-          `${BRAND_NAME} — batch ${stickers.length} stickers — page ${p}/${totalPages}`,
+          `${BRAND_NAME} — batch ${stickers.length} stickers${designTemplate ? ' (avec design)' : ''} — page ${p}/${totalPages}`,
           pageW / 2,
           pageH - 5,
           { align: 'center' }
@@ -340,13 +487,93 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
     }
   }
 
-  // Helper : Blob → DataURL (pour jsPDF.addImage qui veut une dataURL)
-  const blobToDataURL = (blob: Blob): Promise<string> => {
+  // Rend un sticker design COMPLET (background image + QR code + text overlay)
+  // sur un canvas et retourne une data URL PNG. Utilisé pour le PDF quand un
+  // template de design est détecté.
+  // - bgImage : image de fond du template (HTMLImageElement déjà chargée)
+  // - qrPngDataUrl : PNG du QR code de CE sticker (généré par QRCodeStyling)
+  // - qrPosition, qrSize, textOverlay, theme : du template
+  const renderStickerDesign = async (
+    bgImage: HTMLImageElement,
+    qrPngDataUrl: string,
+    qrPosition: { x: number; y: number },
+    qrSize: number,
+    textOverlay: DesignTemplate['textOverlay'],
+    theme: 'white' | 'black' | 'transparent'
+  ): Promise<string> => {
+    // Charger le QR PNG
+    const qrImg = await loadImageEl(qrPngDataUrl)
+
+    // Canvas à la résolution naturelle de l'image de fond
+    const canvas = document.createElement('canvas')
+    canvas.width = bgImage.naturalWidth
+    canvas.height = bgImage.naturalHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas non supporté')
+
+    // Fond selon le thème
+    if (theme === 'white') {
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+    } else if (theme === 'black') {
+      ctx.fillStyle = '#0a0a0a'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+    }
+    // transparent → pas de fill
+
+    // Dessiner l'image de fond
+    ctx.drawImage(bgImage, 0, 0)
+
+    // Dessiner le QR à la position du template
+    const minDim = Math.min(bgImage.naturalWidth, bgImage.naturalHeight)
+    const clampedQrSize = Math.max(0.05, Math.min(0.8, qrSize))
+    const qrPxSize = Math.round(minDim * clampedQrSize)
+    const qrCenterX = qrPosition.x * bgImage.naturalWidth
+    const qrCenterY = qrPosition.y * bgImage.naturalHeight
+    const qrX = qrCenterX - qrPxSize / 2
+    const qrY = qrCenterY - qrPxSize / 2
+    ctx.drawImage(qrImg, qrX, qrY, qrPxSize, qrPxSize)
+
+    // Dessiner le texte overlay si présent
+    if (textOverlay && textOverlay.content.trim()) {
+      const fontSize = Math.round(minDim * textOverlay.size)
+      ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      const textX = textOverlay.x * bgImage.naturalWidth
+      const textY = textOverlay.y * bgImage.naturalHeight
+      // Ombre portée pour la lisibilité
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.6)'
+      ctx.shadowBlur = Math.round(fontSize * 0.15)
+      ctx.shadowOffsetX = 0
+      ctx.shadowOffsetY = Math.round(fontSize * 0.06)
+      ctx.fillStyle = '#ffffff'
+      const lines = textOverlay.content.split('\n')
+      const lineHeight = Math.round(fontSize * 1.2)
+      const totalHeight = lineHeight * lines.length
+      const startY = textY - totalHeight / 2 + fontSize / 2
+      lines.forEach((line, i) => {
+        ctx.fillText(line, textX, startY + i * lineHeight)
+      })
+      // Reset shadow
+      ctx.shadowColor = 'transparent'
+      ctx.shadowBlur = 0
+      ctx.shadowOffsetX = 0
+      ctx.shadowOffsetY = 0
+    }
+
+    // Retourner la data URL PNG
     return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result as string)
-      reader.onerror = reject
-      reader.readAsDataURL(blob)
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Échec de génération du PNG du design'))
+          return
+        }
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      }, 'image/png')
     })
   }
 
@@ -419,7 +646,11 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
             onClick={handleExportPdf}
             disabled={pdfLoading || stickers.length === 0}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="1 seul PDF avec tous les QR codes (6 par page A4) — idéal pour envoyer à l'imprimeur"
+            title={
+              designTemplate
+                ? `1 PDF avec ${stickers.length} stickers complets (design + QR, 6/page A4) — pour l'imprimeur`
+                : `1 PDF avec ${stickers.length} QR codes seuls (6/page A4) — pour l'imprimeur. Configure un design sur un sticker pour l'inclure.`
+            }
           >
             {pdfLoading ? (
               <>
@@ -429,7 +660,7 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
             ) : (
               <>
                 <FileDown size={14} />
-                PDF (1 fichier)
+                PDF (1 fichier{designTemplate ? ' + design' : ''})
               </>
             )}
           </button>
@@ -443,6 +674,47 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
             Imprimer
           </button>
         </div>
+      </div>
+
+      {/* Bannière de statut du template de design (masquée à l'impression) */}
+      <div className="no-print max-w-[1100px] mx-auto px-4 sm:px-6 pt-4">
+        {templateStatus === 'detecting' && (
+          <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800">
+            <Loader2 size={16} className="animate-spin" />
+            Détection d'un design de sticker en cours…
+          </div>
+        )}
+        {templateStatus === 'found' && designTemplate && (
+          <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm">
+            <CheckCircle2 size={18} className="text-emerald-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold text-emerald-900">
+                Design détecté — le PDF inclura le sticker complet (image + QR + texte)
+              </p>
+              <p className="text-emerald-700 mt-1">
+                Template depuis le sticker <span className="font-mono font-semibold">{designTemplate.slug}</span>
+                {designTemplate.label ? ` (${designTemplate.label})` : ''}.
+                Chaque sticker du batch recevra son propre QR code positionné sur ce design.
+              </p>
+            </div>
+          </div>
+        )}
+        {templateStatus === 'none' && (
+          <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-sm">
+            <AlertCircle size={18} className="text-amber-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold text-amber-900">
+                Aucun design détecté — le PDF contiendra les QR codes seuls
+              </p>
+              <p className="text-amber-700 mt-1">
+                Pour inclure les QR dans un design (image de fond + texte), configure le design
+                d'au moins un sticker du batch depuis l'admin (bouton <ImageIcon size={12} className="inline" /> QR /
+                Design du sticker), puis reviens sur cette page. Le design du premier sticker configuré
+                sera appliqué à tous les QR du PDF.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Grille de QR codes — visible à l'écran et à l'impression */}
