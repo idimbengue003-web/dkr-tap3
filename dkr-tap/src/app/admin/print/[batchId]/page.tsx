@@ -56,6 +56,9 @@ export default function PrintBatchPage() {
   const [zipProgress, setZipProgress] = useState(0)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [pdfProgress, setPdfProgress] = useState(0)
+  // Nombre de QR à inclure dans le PDF (l'utilisateur choisit combien envoyer
+  // à l'imprimeur — ex: 10 sur 30 si l'imprimeur fait par petits batches)
+  const [pdfCount, setPdfCount] = useState<number | ''>('')
   // Template de design détecté (le 1er sticker du batch qui a une image uploadée)
   const [designTemplate, setDesignTemplate] = useState<DesignTemplate | null>(null)
   const [templateDetecting, setTemplateDetecting] = useState(false)
@@ -351,6 +354,16 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
     setPdfLoading(true)
     setPdfProgress(0)
     try {
+      // Nombre de stickers à inclure dans le PDF.
+      // Si pdfCount est vide ou > total → tous les stickers.
+      // Sinon → les N premiers seulement.
+      const totalCount = stickers.length
+      const count =
+        pdfCount === '' || pdfCount <= 0 || pdfCount >= totalCount
+          ? totalCount
+          : Math.max(1, Math.floor(pdfCount))
+      const batch = stickers.slice(0, count)
+
       // A4 portrait : 210 × 297 mm
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pageW = 210
@@ -368,8 +381,8 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
       const cellW = usableW / cols
       const cellH = usableH / rows
 
-      for (let i = 0; i < stickers.length; i++) {
-        const s = stickers[i]
+      for (let i = 0; i < batch.length; i++) {
+        const s = batch[i]
         // Nouvelle page tous les 6 stickers (sauf pour le 1er)
         if (i > 0 && i % (cols * rows) === 0) {
           pdf.addPage()
@@ -459,20 +472,20 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
 
         pdf.setTextColor(0, 0, 0) // reset
 
-        setPdfProgress(Math.round(((i + 1) / stickers.length) * 100))
+        setPdfProgress(Math.round(((i + 1) / batch.length) * 100))
         // Yield au thread pour pas figer l'UI
         await new Promise((r) => setTimeout(r, 0))
       }
 
       // Pied de page sur chaque page : n° de page + nb total
-      const totalPages = Math.ceil(stickers.length / (cols * rows))
+      const totalPages = Math.ceil(batch.length / (cols * rows))
       for (let p = 1; p <= totalPages; p++) {
         pdf.setPage(p)
         pdf.setFont('helvetica', 'normal')
         pdf.setFontSize(8)
         pdf.setTextColor(150, 150, 150)
         pdf.text(
-          `${BRAND_NAME} — batch ${stickers.length} stickers${designTemplate ? ' (avec design)' : ''} — page ${p}/${totalPages}`,
+          `${BRAND_NAME} — ${batch.length}/${stickers.length} stickers${designTemplate ? ' (avec design)' : ''} — page ${p}/${totalPages}`,
           pageW / 2,
           pageH - 5,
           { align: 'center' }
@@ -480,7 +493,7 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
         pdf.setTextColor(0, 0, 0)
       }
 
-      pdf.save(`stickers-pdf-${stickers.length}-${Date.now()}.pdf`)
+      pdf.save(`stickers-pdf-${batch.length}-${Date.now()}.pdf`)
     } finally {
       setPdfLoading(false)
       setPdfProgress(0)
@@ -640,6 +653,33 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
               </>
             )}
           </button>
+          {/* Sélecteur du nombre de QR à inclure dans le PDF.
+              L'utilisateur peut choisir d'envoyer seulement N stickers à
+              l'imprimeur (ex: 10 sur 30) si l'imprimeur travaille par petits
+              batches. Vide = tous les stickers. */}
+          <div className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-zinc-200 bg-white">
+            <label
+              htmlFor="pdf-count"
+              className="text-xs font-medium text-zinc-600 whitespace-nowrap"
+            >
+              Nb QR :
+            </label>
+            <input
+              id="pdf-count"
+              type="number"
+              min={1}
+              max={stickers.length || undefined}
+              value={pdfCount}
+              placeholder={String(stickers.length)}
+              onChange={(e) => {
+                const v = e.target.value
+                setPdfCount(v === '' ? '' : Math.max(1, parseInt(v, 10) || 1))
+              }}
+              className="w-14 text-sm text-center border-0 outline-none bg-transparent text-zinc-900 font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+              title={`Nombre de QR à inclure dans le PDF (1 à ${stickers.length}). Vide = tous les ${stickers.length} stickers.`}
+            />
+            <span className="text-xs text-zinc-400">/{stickers.length}</span>
+          </div>
           {/* Export PDF UNIQUE — 1 seul fichier PDF avec tous les QR (6/page A4).
               ⭐ Solution recommandée pour l'imprimeur : 1 fichier au lieu de 100 PNG. */}
           <button
@@ -648,8 +688,8 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
             title={
               designTemplate
-                ? `1 PDF avec ${stickers.length} stickers complets (design + QR, 6/page A4) — pour l'imprimeur`
-                : `1 PDF avec ${stickers.length} QR codes seuls (6/page A4) — pour l'imprimeur. Configure un design sur un sticker pour l'inclure.`
+                ? `1 PDF avec ${pdfCount === '' || pdfCount <= 0 ? stickers.length : Math.min(pdfCount, stickers.length)} stickers complets (design + QR, 6/page A4) — pour l'imprimeur`
+                : `1 PDF avec ${pdfCount === '' || pdfCount <= 0 ? stickers.length : Math.min(pdfCount, stickers.length)} QR codes seuls (6/page A4) — pour l'imprimeur. Configure un design sur un sticker pour l'inclure.`
             }
           >
             {pdfLoading ? (
@@ -660,7 +700,7 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
             ) : (
               <>
                 <FileDown size={14} />
-                PDF (1 fichier{designTemplate ? ' + design' : ''})
+                PDF ({pdfCount === '' || pdfCount <= 0 ? stickers.length : Math.min(pdfCount, stickers.length)}{designTemplate ? ' + design' : ''})
               </>
             )}
           </button>
