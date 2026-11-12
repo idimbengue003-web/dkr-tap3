@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { BrandedQR, NETWORK_LOGO_PATHS, NETWORK_STYLES } from '@/components/branded-qr'
 import { getEffectiveNetwork } from '@/lib/sticker-template'
-import { Printer, Loader2, ArrowLeft, Download, FileText, Archive } from 'lucide-react'
+import { Printer, Loader2, ArrowLeft, Download, FileText, Archive, FileDown } from 'lucide-react'
 import QRCodeStyling from 'qr-code-styling'
 import JSZip from 'jszip'
+import { jsPDF } from 'jspdf'
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'DKR TAP'
 
@@ -24,6 +25,8 @@ export default function PrintBatchPage() {
   const [csvLoading, setCsvLoading] = useState(false)
   const [zipLoading, setZipLoading] = useState(false)
   const [zipProgress, setZipProgress] = useState(0)
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const [pdfProgress, setPdfProgress] = useState(0)
 
   // Lire les slugs depuis l'URL (?slugs=slug1,slug2,...)
   // ou depuis sessionStorage si on vient du bulk create
@@ -229,6 +232,124 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
     }
   }
 
+  // Export PDF UNIQUE — 1 seul fichier PDF avec tous les QR codes
+  // (6 par page A4 portrait). Solution pour imprimeur qui ne veut pas
+  // recevoir 100 PNG individuels : il reçoit 1 PDF qu'il imprime direct.
+  const handleExportPdf = async () => {
+    setPdfLoading(true)
+    setPdfProgress(0)
+    try {
+      // A4 portrait : 210 × 297 mm
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pageW = 210
+      const pageH = 297
+      // Marges (mm)
+      const marginX = 14
+      const marginTop = 16
+      const marginBot = 14
+      // Zone utile
+      const usableW = pageW - marginX * 2
+      const usableH = pageH - marginTop - marginBot
+      // Grille 2 × 3 = 6 QR par page
+      const cols = 2
+      const rows = 3
+      const cellW = usableW / cols
+      const cellH = usableH / rows
+      // Taille du QR dans chaque cellule (mm) — 60mm pour rester lisible
+      const qrSizeMm = 58
+      // Hauteur réservée au texte (label + slug) sous le QR
+      const textZoneH = cellH - qrSizeMm - 6
+
+      for (let i = 0; i < stickers.length; i++) {
+        const s = stickers[i]
+        // Nouvelle page tous les 6 stickers (sauf pour le 1er)
+        if (i > 0 && i % (cols * rows) === 0) {
+          pdf.addPage()
+        }
+        // Position dans la grille (0..5 sur la page courante)
+        const posInPage = i % (cols * rows)
+        const col = posInPage % cols
+        const row = Math.floor(posInPage / cols)
+        // Coordonnées du coin haut-gauche de la cellule (mm)
+        const cellX = marginX + col * cellW
+        const cellY = marginTop + row * cellH
+
+        // Cadre pointillé autour de la cellule (repère de découpe pour l'imprimeur)
+        pdf.setDrawColor(212, 212, 216)
+        pdf.setLineDashPattern([1, 1], 0)
+        pdf.roundedRect(cellX, cellY, cellW, cellH, 2, 2, 'S')
+        pdf.setLineDashPattern([], 0)
+
+        // Générer le QR en PNG haute résolution (canvas préserve les gradients)
+        const net = getEffectiveNetwork(s.targetUrl, s.customNetwork ?? null)
+        const logoUrl = net ? NETWORK_LOGO_PATHS[net] : undefined
+        const options = buildQrOptions(getPublicUrl(s.slug), net, 1024, logoUrl)
+        const qr = new QRCodeStyling(options)
+        const blob = await qr.getRawData('png')
+        if (blob) {
+          const dataUrl = await blobToDataURL(blob)
+          // Centrer le QR horizontalement dans la cellule
+          const qrX = cellX + (cellW - qrSizeMm) / 2
+          const qrY = cellY + 4 // petite marge top dans la cellule
+          pdf.addImage(dataUrl, 'PNG', qrX, qrY, qrSizeMm, qrSizeMm, undefined, 'FAST')
+        }
+
+        // Texte sous le QR : label (gras) + slug (mono)
+        const textX = cellX + cellW / 2 // centré
+        const labelY = cellY + 4 + qrSizeMm + 5
+        const label = s.label || s.slug
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(10)
+        // SplitText gère les labels longs (retour à la ligne auto)
+        const labelLines = pdf.splitTextToSize(label, cellW - 8)
+        pdf.text(labelLines, textX, labelY, { align: 'center' })
+
+        // Slug en dessous (mono, gris)
+        const slugLines = labelLines.length
+        pdf.setFont('courier', 'normal')
+        pdf.setFontSize(8)
+        pdf.setTextColor(90, 90, 90)
+        pdf.text(s.slug, textX, labelY + slugLines * 4 + 2, { align: 'center' })
+        pdf.setTextColor(0, 0, 0) // reset
+
+        setPdfProgress(Math.round(((i + 1) / stickers.length) * 100))
+        // Yield au thread pour pas figer l'UI
+        await new Promise((r) => setTimeout(r, 0))
+      }
+
+      // Pied de page sur chaque page : n° de page + nb total
+      const totalPages = Math.ceil(stickers.length / (cols * rows))
+      for (let p = 1; p <= totalPages; p++) {
+        pdf.setPage(p)
+        pdf.setFont('helvetica', 'normal')
+        pdf.setFontSize(8)
+        pdf.setTextColor(150, 150, 150)
+        pdf.text(
+          `${BRAND_NAME} — batch ${stickers.length} stickers — page ${p}/${totalPages}`,
+          pageW / 2,
+          pageH - 5,
+          { align: 'center' }
+        )
+        pdf.setTextColor(0, 0, 0)
+      }
+
+      pdf.save(`stickers-pdf-${stickers.length}-${Date.now()}.pdf`)
+    } finally {
+      setPdfLoading(false)
+      setPdfProgress(0)
+    }
+  }
+
+  // Helper : Blob → DataURL (pour jsPDF.addImage qui veut une dataURL)
+  const blobToDataURL = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -292,13 +413,34 @@ ${stickers.map((s, i) => `  ${String(i + 1).padStart(3, '0')}. ${s.slug} — ${s
               </>
             )}
           </button>
-          {/* Imprimer / PDF */}
+          {/* Export PDF UNIQUE — 1 seul fichier PDF avec tous les QR (6/page A4).
+              ⭐ Solution recommandée pour l'imprimeur : 1 fichier au lieu de 100 PNG. */}
+          <button
+            onClick={handleExportPdf}
+            disabled={pdfLoading || stickers.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="1 seul PDF avec tous les QR codes (6 par page A4) — idéal pour envoyer à l'imprimeur"
+          >
+            {pdfLoading ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                {pdfProgress}%
+              </>
+            ) : (
+              <>
+                <FileDown size={14} />
+                PDF (1 fichier)
+              </>
+            )}
+          </button>
+          {/* Imprimer via navigateur (save as PDF depuis le dialogue d'impression) */}
           <button
             onClick={() => window.print()}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-400"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-200 bg-white text-zinc-700 text-sm font-medium hover:bg-zinc-50"
+            title="Ouvrir le dialogue d'impression du navigateur (Save as PDF possible)"
           >
             <Printer size={14} />
-            Imprimer / PDF
+            Imprimer
           </button>
         </div>
       </div>
