@@ -117,9 +117,29 @@ export default async function LandingPage() {
 
           <h1 className="text-3xl sm:text-6xl font-bold tracking-tight mb-4 sm:mb-6 leading-tight">
             DKR TAP. <span className="text-emerald-400">Grow your business.</span>
-            <br />
-            <span className="text-zinc-300 text-lg sm:text-3xl font-normal">Un scan. Un abonné. Un avis cinq étoiles.</span>
           </h1>
+
+          {/* Tagline : 3 colonnes, chaque phrase avec un visuel dessous */}
+          <div className="flex flex-wrap items-start justify-center gap-x-6 sm:gap-x-12 gap-y-3 mb-6 sm:mb-8">
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-zinc-300 text-base sm:text-2xl font-normal">Un scan.</span>
+              <span className="text-2xl sm:text-3xl" role="img" aria-label="scan">📱</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-zinc-300 text-base sm:text-2xl font-normal">Un abonné.</span>
+              <span className="text-2xl sm:text-3xl" role="img" aria-label="abonné">🧑</span>
+            </div>
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="text-zinc-300 text-base sm:text-2xl font-normal">Un avis cinq étoiles.</span>
+              <div className="flex gap-0.5" aria-label="5 étoiles">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <svg key={i} width="18" height="18" viewBox="0 0 24 24" fill="#f97316" className="sm:w-5 sm:h-5">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                ))}
+              </div>
+            </div>
+          </div>
 
           <p className="text-base sm:text-xl text-zinc-400 max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed">
             Vos cartes QR DKR TAP redirigent vos clients directement vers vos réseaux sociaux.

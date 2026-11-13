@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 type Props = {
   brandName: string
@@ -110,79 +111,84 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
         </button>
       </div>
 
-      {/* Menu — UN SEUL div fixed, overlay + panel en absolute DEDANS.
-          On verrouille le body via le useEffect ci-dessus pour éviter le scroll chaining. */}
-      <div
-        className="fixed inset-0 z-[60] md:hidden"
-        onClick={() => setOpen(false)}
-      >
-        {/* Overlay — absolute dans le parent fixed */}
+      {/* Menu — rendu via PORTAL au niveau du <body> pour échapper au
+          containing block créé par backdrop-blur sur le header.
+          Sans portal, position:fixed est relatif au header (pas au viewport)
+          et l'overlay est clipé à la hauteur du header. */}
+      {typeof document !== 'undefined' && createPortal(
         <div
-          className="absolute inset-0 bg-black"
-          style={{ opacity: 0.85, touchAction: 'none' }}
-        />
-
-        {/* Panel — absolute dans le parent fixed, à droite.
-            On utilise h-full (et non h-screen) car le parent fixed inset-0
-            fait déjà 100vh, et h-full est plus stable sur iOS Safari (la
-            barre d'URL dynamique fait varier 100vh et provoque du jitter). */}
-        <div
-          className="absolute top-0 right-0 h-full w-[85vw] max-w-[360px] bg-zinc-950 border-l border-zinc-800 overflow-y-auto overscroll-contain"
-          onClick={(e) => e.stopPropagation()}
+          className="fixed inset-0 z-[60] md:hidden"
+          onClick={() => setOpen(false)}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-            <a href="/" onClick={() => setOpen(false)} className="flex items-center gap-2">
-              <img src={brandLogo} alt="" width={28} height={28} className="rounded-lg" />
-              <span className="font-bold text-lg text-white">{brandName}</span>
-            </a>
-            <button
-              onClick={() => setOpen(false)}
-              className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center text-white shrink-0"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
+          {/* Overlay — absolute dans le parent fixed */}
+          <div
+            className="absolute inset-0 bg-black"
+            style={{ opacity: 0.85, touchAction: 'none' }}
+          />
 
-          {/* Liens — simple liste, pas de container complexe */}
-          <a href="/#modeles" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Modèles</a>
-          <a href="/#tarifs" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Tarifs</a>
-          <a href="/#commander" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Commander</a>
-          <a href="/comment-ca-marche" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Comment ça marche</a>
-          <a href="/faq" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">FAQ</a>
-          <a href="/blog" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Blog</a>
-          <a href="/recharger" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Recharger mon solde</a>
-          <a href="/account" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Mon compte</a>
-          <a href="/contact" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Contact</a>
-
-          {/* Panier */}
-          <button
-            onClick={() => { setOpen(false); onOpenCart() }}
-            className="w-full text-left px-5 py-4 text-white border-b border-zinc-900 flex items-center justify-between"
+          {/* Panel — absolute dans le parent fixed, à droite.
+              On utilise h-full (et non h-screen) car le parent fixed inset-0
+              fait déjà 100vh, et h-full est plus stable sur iOS Safari (la
+              barre d'URL dynamique fait varier 100vh et provoque du jitter). */}
+          <div
+            className="absolute top-0 right-0 h-full w-[85vw] max-w-[360px] bg-zinc-950 border-l border-zinc-800 overflow-y-auto overscroll-contain"
+            onClick={(e) => e.stopPropagation()}
           >
-            <span>Panier revendeur</span>
-            {cartCount > 0 ? (
-              <span className="min-w-[22px] h-5 px-1.5 rounded-full bg-emerald-500 text-black text-xs font-bold flex items-center justify-center">
-                {cartCount}
-              </span>
-            ) : (
-              <span className="text-xs text-zinc-600">Vide</span>
-            )}
-          </button>
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+              <a href="/" onClick={() => setOpen(false)} className="flex items-center gap-2">
+                <img src={brandLogo} alt="" width={28} height={28} className="rounded-lg" />
+                <span className="font-bold text-lg text-white">{brandName}</span>
+              </a>
+              <button
+                onClick={() => setOpen(false)}
+                className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center text-white shrink-0"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
 
-          {/* Bouton appel */}
-          <div className="p-4">
-            <a
-              href={`tel:${brandPhone.replace(/\s/g, '')}`}
-              className="block text-center px-4 py-3.5 rounded-xl bg-emerald-500 text-black font-semibold"
+            {/* Liens — simple liste, pas de container complexe */}
+            <a href="/#modeles" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Modèles</a>
+            <a href="/#tarifs" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Tarifs</a>
+            <a href="/#commander" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Commander</a>
+            <a href="/comment-ca-marche" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Comment ça marche</a>
+            <a href="/faq" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">FAQ</a>
+            <a href="/blog" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Blog</a>
+            <a href="/recharger" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Recharger mon solde</a>
+            <a href="/account" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Mon compte</a>
+            <a href="/contact" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Contact</a>
+
+            {/* Panier */}
+            <button
+              onClick={() => { setOpen(false); onOpenCart() }}
+              className="w-full text-left px-5 py-4 text-white border-b border-zinc-900 flex items-center justify-between"
             >
-              📞 Appeler le {brandPhone}
-            </a>
+              <span>Panier revendeur</span>
+              {cartCount > 0 ? (
+                <span className="min-w-[22px] h-5 px-1.5 rounded-full bg-emerald-500 text-black text-xs font-bold flex items-center justify-center">
+                  {cartCount}
+                </span>
+              ) : (
+                <span className="text-xs text-zinc-600">Vide</span>
+              )}
+            </button>
+
+            {/* Bouton appel */}
+            <div className="p-4">
+              <a
+                href={`tel:${brandPhone.replace(/\s/g, '')}`}
+                className="block text-center px-4 py-3.5 rounded-xl bg-emerald-500 text-black font-semibold"
+              >
+                📞 Appeler le {brandPhone}
+              </a>
+            </div>
           </div>
-        </div>
-      </div>
+        </div>,
+        document.body
+      )}
     </>
   )
 }
