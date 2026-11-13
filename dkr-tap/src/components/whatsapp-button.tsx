@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 
@@ -19,8 +19,26 @@ function formatWhatsappNumber(phone: string): string {
 const WHATSAPP_NUMBER = formatWhatsappNumber(BRAND_PHONE)
 const DEFAULT_MESSAGE = `Bonjour ${BRAND_NAME} ! 👋 Je viens de visiter votre site www.dkrtap.site et je souhaite des informations sur les cartes QR pour mes réseaux sociaux.`
 
+// Délai avant l'auto-repli de la bulle si l'utilisateur n'interagit pas.
+// 5s : assez pour lire le message, pas trop pour encombrer le site.
+const AUTO_DISMISS_MS = 5000
+
 export function WhatsAppButton() {
   const [showBubble, setShowBubble] = useState(false)
+  // Timer d'auto-repli — stocké dans un ref pour pouvoir le clear/reset.
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Démarrer / arrêter le timer d'auto-repli quand la bulle apparaît / disparaît.
+  const startDismissTimer = () => {
+    if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current)
+    dismissTimerRef.current = setTimeout(() => setShowBubble(false), AUTO_DISMISS_MS)
+  }
+  const clearDismissTimer = () => {
+    if (dismissTimerRef.current) {
+      clearTimeout(dismissTimerRef.current)
+      dismissTimerRef.current = null
+    }
+  }
 
   // Afficher la bulle après 5 secondes (laisser le temps à l'utilisateur de naviguer)
   useEffect(() => {
@@ -28,27 +46,50 @@ export function WhatsAppButton() {
     return () => clearTimeout(t)
   }, [])
 
+  // Quand la bulle devient visible → démarrer l'auto-repli.
+  // Quand elle disparaît → clear le timer (pas de fuite mémoire).
+  useEffect(() => {
+    if (showBubble) {
+      startDismissTimer()
+    } else {
+      clearDismissTimer()
+    }
+    return clearDismissTimer
+  }, [showBubble])
+
   const handleClick = () => {
+    clearDismissTimer()
+    setShowBubble(false)
     const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(DEFAULT_MESSAGE)}`
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
-      {/* Bulle de message (auto-dismiss après 15s) */}
+      {/* Bulle de message — auto-repli après 5s sans interaction.
+          Pause du timer au survol (laisse le temps de lire). */}
       <AnimatePresence>
         {showBubble && (
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.9 }}
-            className="relative max-w-xs bg-white text-zinc-900 text-sm font-medium rounded-2xl rounded-br-none shadow-2xl p-3 pr-8 mb-1"
+            // Au survol → on met en pause l'auto-repli (l'utilisateur est en train de lire).
+            // À la sortie du survol → on relance le timer (5 nouvelles secondes).
+            onMouseEnter={clearDismissTimer}
+            onMouseLeave={startDismissTimer}
+            onClick={handleClick}
+            className="relative max-w-xs bg-white text-zinc-900 text-sm font-medium rounded-2xl rounded-br-none shadow-2xl p-3 pr-8 mb-1 cursor-pointer hover:bg-zinc-50 transition-colors"
           >
             Une question sur les cartes QR ? 👋
             <br />
             <span className="text-zinc-600 text-xs">Écris-nous sur WhatsApp, on répond vite !</span>
             <button
-              onClick={() => setShowBubble(false)}
+              onClick={(e) => {
+                e.stopPropagation()
+                clearDismissTimer()
+                setShowBubble(false)
+              }}
               className="absolute top-2 right-2 text-zinc-400 hover:text-zinc-600"
               aria-label="Fermer"
             >
