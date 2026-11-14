@@ -3,33 +3,56 @@
 Génère tous les fichiers favicon / icônes PWA à partir du logo source
 (public/dkrtap-logo.png).
 
+v2 : zoom sur le logo (crop marges) + fond opaque (#0a0a0a) pour éliminer
+    le blanc qui apparaissait dans les zones transparentes de l'onglet.
+
 Sortie :
-- src/app/favicon.ico       → ICO multi-résolution (16, 32, 48) servit à /favicon.ico
+- src/app/favicon.ico       → ICO multi-résolution (16, 32, 48)
 - src/app/icon.png          → 32×32 PNG (Next.js auto-génère <link rel="icon">)
 - src/app/apple-icon.png    → 180×180 PNG (<link rel="apple-touch-icon">)
 - public/icon-192.png       → 192×192 (PWA manifest)
 - public/icon-512.png       → 512×512 (PWA manifest)
 - public/icon-192-maskable.png → 192×192 avec safe zone (maskable)
 - public/icon-512-maskable.png → 512×512 avec safe zone (maskable)
-
-Next.js App Router détecte automatiquement favicon.ico, icon.png et
-apple-icon.png placés dans src/app/ et génère les balises <link> avec
-une URL hashée (cache-busting automatique à chaque rebuild).
 """
 
-from PIL import Image, ImageDraw
+from PIL import Image
 import os
 
 SRC = '/home/z/my-project/dkr-tap/public/dkrtap-logo.png'
 APP_DIR = '/home/z/my-project/dkr-tap/src/app'
 PUBLIC_DIR = '/home/z/my-project/dkr-tap/public'
 
+# Couleur de fond pour combler les zones transparentes du logo.
+# #0a0a0a = fond du site (dark) → pas de blanc dans l'onglet navigateur.
+BG_COLOR = (10, 10, 10, 255)
+
+# Zoom : pourcentage de marge à rogner de chaque côté.
+# 8% → rogne 8% de chaque côté (gauche, droite, haut, bas) → le logo
+# remplit ~17% plus de la surface du favicon.
+CROP_MARGIN_PCT = 0.08
+
 os.makedirs(APP_DIR, exist_ok=True)
 os.makedirs(PUBLIC_DIR, exist_ok=True)
 
 # Charger le logo source (614×614 RGBA)
-logo = Image.open(SRC).convert('RGBA')
-print(f'Logo source : {logo.size[0]}×{logo.size[1]} {logo.mode}')
+raw = Image.open(SRC).convert('RGBA')
+w, h = raw.size
+print(f'Logo source : {w}×{h} {raw.mode}')
+
+# 1. ZOOM : rogner les marges pour que le logo remplisse plus le cadre
+mw = int(w * CROP_MARGIN_PCT)
+mh = int(h * CROP_MARGIN_PCT)
+cropped = raw.crop((mw, mh, w - mw, h - mh))
+cw, ch = cropped.size
+print(f'Après crop ({int(CROP_MARGIN_PCT*100)}% marges) : {cw}×{ch}')
+
+# 2. FOND OPAQUE : combler les zones transparentes avec BG_COLOR
+#    → plus de transparence = plus de blanc dans l'onglet navigateur
+bg = Image.new('RGBA', (cw, ch), BG_COLOR)
+bg.paste(cropped, (0, 0), cropped)
+logo = bg.convert('RGBA')
+print(f'Logo final : {logo.size[0]}×{logo.size[1]} (fond opaque #{BG_COLOR[0]:02x}{BG_COLOR[1]:02x}{BG_COLOR[2]:02x})')
 
 
 def resize_logo(size: int) -> Image.Image:
@@ -40,7 +63,7 @@ def resize_logo(size: int) -> Image.Image:
 def make_maskable(size: int) -> Image.Image:
     """Crée une icône maskable : canvas carré avec fond + logo centré à 80%
     (safe zone pour que le masque Android ne croppe pas le contenu)."""
-    canvas = Image.new('RGBA', (size, size), (10, 10, 10, 255))  # #0a0a0a fond
+    canvas = Image.new('RGBA', (size, size), BG_COLOR)
     logo_size = int(size * 0.80)  # 80% = safe zone maskable
     logo_resized = logo.resize((logo_size, logo_size), Image.LANCZOS)
     offset = ((size - logo_size) // 2, (size - logo_size) // 2)
@@ -81,6 +104,4 @@ for size in [192, 512]:
     maskable.save(path_m, format='PNG', optimize=True)
     print(f'✓ {path_m} ({os.path.getsize(path_m)} bytes)')
 
-print('\n✅ Tous les fichiers favicon générés.')
-print('   Next.js auto-détectera favicon.ico, icon.png, apple-icon.png dans src/app/')
-print('   et générera les balises <link> avec URL hashée (cache-busting auto).')
+print('\n✅ Favicons régénérés avec logo zoomé + fond opaque (plus de blanc).')
