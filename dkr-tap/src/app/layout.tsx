@@ -23,10 +23,11 @@ export const metadata: Metadata = {
   description: "Vos cartes QR DKR TAP redirigent vos clients directement vers vos réseaux sociaux. TikTok, Instagram, Google, WhatsApp — choisissez votre réseau, on s'occupe du reste. Vos clients scannent, votre audience grandit.",
   keywords: ["QR code", "réseaux sociaux", "Instagram", "TikTok", "Google Reviews", "WhatsApp", "stickers", "Dakar", "Sénégal", BRAND_NAME],
   authors: [{ name: BRAND_NAME }],
-  icons: {
-    icon: "/dkrtap-logo.png",
-    apple: "/dkrtap-logo.png",
-  },
+  // Favicons gérés par convention de fichiers Next.js App Router :
+  // src/app/favicon.ico, src/app/icon.png, src/app/apple-icon.png sont
+  // auto-détectés et servis avec une URL hashée (cache-busting automatique
+  // à chaque rebuild — résout le problème de navigateur qui garde l'ancien
+  // favicon en cache indéfiniment).
   manifest: "/manifest.json",
   // Vérification Google Search Console (pour l'indexation SEO)
   verification: {
