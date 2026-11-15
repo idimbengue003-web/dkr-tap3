@@ -13,9 +13,9 @@ type Props = {
 
 const LINKS = [
   { href: '/#modeles', label: 'Modèles' },
+  { href: '/comment-ca-marche', label: 'Comment ça marche' },
   { href: '/#tarifs', label: 'Tarifs' },
   { href: '/#commander', label: 'Commander' },
-  { href: '/comment-ca-marche', label: 'Comment ça marche' },
   { href: '/faq', label: 'FAQ' },
   { href: '/blog', label: 'Blog' },
   { href: '/recharger', label: 'Recharger mon solde' },
@@ -152,9 +152,9 @@ export function MobileNav({ brandName, brandLogo, brandPhone, cartCount, onOpenC
 
             {/* Liens — simple liste, pas de container complexe */}
             <a href="/#modeles" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Modèles</a>
+            <a href="/comment-ca-marche" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Comment ça marche</a>
             <a href="/#tarifs" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Tarifs</a>
             <a href="/#commander" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Commander</a>
-            <a href="/comment-ca-marche" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Comment ça marche</a>
             <a href="/faq" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">FAQ</a>
             <a href="/blog" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Blog</a>
             <a href="/recharger" onClick={() => setOpen(false)} className="block px-5 py-4 text-white border-b border-zinc-900">Recharger mon solde</a>

@@ -278,68 +278,6 @@ export default async function LandingPage() {
       {/* ===== SCROLL VIDÉO — 3 frames en séquence ===== */}
       <ScrollSequence />
 
-      {/* ===== COMMENT ÇA MARCHE ===== */}
-      <section className="py-12 px-4 sm:py-20 sm:px-6">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl sm:text-4xl font-bold text-center mb-4">
-            Comment ça marche
-          </h2>
-          <p className="text-center text-zinc-400 mb-12 max-w-2xl mx-auto">
-            3 étapes simples pour avoir vos stickers QR pro et dynamiques
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                num: '1',
-                title: 'Choisissez votre modèle',
-                desc: 'Sélectionnez le réseau social (Google, TikTok, Instagram, WhatsApp...) et importez votre design.',
-                icon: (
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                    <circle cx="9" cy="9" r="2"/>
-                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-                  </svg>
-                ),
-              },
-              {
-                num: '2',
-                title: 'Le client scanne',
-                desc: 'Page d\'attente branded avec vos couleurs, puis redirection automatique vers votre réseau social.',
-                icon: (
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="7" height="7"/>
-                    <rect x="14" y="3" width="7" height="7"/>
-                    <rect x="3" y="14" width="7" height="7"/>
-                    <path d="M14 14h7v7h-7z"/>
-                  </svg>
-                ),
-              },
-              {
-                num: '3',
-                title: 'Modifiez quand vous voulez',
-                desc: 'Changez l\'URL de redirection à tout moment. Le sticker imprimé ne change pas — le lien oui.',
-                icon: (
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
-                    <path d="M21 3v5h-5"/>
-                  </svg>
-                ),
-              },
-            ].map((step) => (
-              <div key={step.num} className="text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                  {step.icon}
-                </div>
-                <div className="text-sm font-bold text-emerald-400 mb-2">ÉTAPE {step.num}</div>
-                <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
-                <p className="text-sm text-zinc-400 leading-relaxed">{step.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ===== MODÈLES ===== */}
       <section id="modeles" className="py-12 px-4 sm:py-20 sm:px-6 bg-zinc-900/50">
         <div className="max-w-6xl mx-auto">
@@ -409,6 +347,68 @@ export default async function LandingPage() {
                 <path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>
               </svg>
             </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== COMMENT ÇA MARCHE ===== */}
+      <section className="py-12 px-4 sm:py-20 sm:px-6">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-2xl sm:text-4xl font-bold text-center mb-4">
+            Comment ça marche
+          </h2>
+          <p className="text-center text-zinc-400 mb-12 max-w-2xl mx-auto">
+            3 étapes simples pour avoir vos stickers QR pro et dynamiques
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                num: '1',
+                title: 'Choisissez votre modèle',
+                desc: 'Sélectionnez le réseau social (Google, TikTok, Instagram, WhatsApp...) et importez votre design.',
+                icon: (
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="9" cy="9" r="2"/>
+                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+                  </svg>
+                ),
+              },
+              {
+                num: '2',
+                title: 'Le client scanne',
+                desc: 'Page d\'attente branded avec vos couleurs, puis redirection automatique vers votre réseau social.',
+                icon: (
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                    <path d="M14 14h7v7h-7z"/>
+                  </svg>
+                ),
+              },
+              {
+                num: '3',
+                title: 'Modifiez quand vous voulez',
+                desc: 'Changez l\'URL de redirection à tout moment. Le sticker imprimé ne change pas — le lien oui.',
+                icon: (
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                    <path d="M21 3v5h-5"/>
+                  </svg>
+                ),
+              },
+            ].map((step) => (
+              <div key={step.num} className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  {step.icon}
+                </div>
+                <div className="text-sm font-bold text-emerald-400 mb-2">ÉTAPE {step.num}</div>
+                <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
+                <p className="text-sm text-zinc-400 leading-relaxed">{step.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
