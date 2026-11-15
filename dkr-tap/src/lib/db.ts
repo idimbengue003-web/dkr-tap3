@@ -727,6 +727,39 @@ export const db = {
     return Promise.all([1, 2, 3, 4].map((n) => store.get<string>(`modelPhoto:${n}`)))
   },
 
+  /* ============ PARAMÈTRES DU SITE (visibilité photos) ============ */
+  // Permet à l'admin de masquer/afficher des photos sur le site public
+  // sans les supprimer (toggle on/off).
+
+  async getSiteSettings(): Promise<{
+    photoVisible: Record<number, boolean>
+    heroImageVisible: boolean
+  }> {
+    const stored = await store.get<{
+      photoVisible?: Record<number, boolean>
+      heroImageVisible?: boolean
+    }>('siteSettings')
+    return {
+      photoVisible: {
+        1: true, 2: true, 3: true, 4: true,
+        ...(stored?.photoVisible || {}),
+      },
+      heroImageVisible: stored?.heroImageVisible ?? true,
+    }
+  },
+
+  async setSiteSettings(settings: {
+    photoVisible?: Record<number, boolean>
+    heroImageVisible?: boolean
+  }): Promise<void> {
+    const current = await this.getSiteSettings()
+    const merged = {
+      photoVisible: { ...current.photoVisible, ...(settings.photoVisible || {}) },
+      heroImageVisible: settings.heroImageVisible ?? current.heroImageVisible,
+    }
+    await store.set('siteSettings', merged)
+  },
+
   /* ============ MODÈLES PAR CATÉGORIE ============ */
 
   async listModels(categoryId: string): Promise<StickerModel[]> {

@@ -3354,6 +3354,9 @@ function ModelPhotosSection() {
   const { toast } = useToast()
   const [photos, setPhotos] = useState<(string | null)[]>([null, null, null, null])
   const [uploading, setUploading] = useState<number | null>(null)
+  // Réglages de visibilité — masquer/afficher photos sur le site public
+  const [photoVisible, setPhotoVisible] = useState<Record<number, boolean>>({ 1: true, 2: true, 3: true, 4: true })
+  const [heroImageVisible, setHeroImageVisible] = useState(true)
 
   const fetchPhotos = useCallback(async () => {
     const results = await Promise.all(
@@ -3374,6 +3377,56 @@ function ModelPhotosSection() {
   useEffect(() => {
     fetchPhotos()
   }, [fetchPhotos])
+
+  // Charger les réglages de visibilité depuis le serveur
+  const fetchSettings = useCallback(async () => {
+    try {
+      const res = await fetch('/api/site-settings', { cache: 'no-store' })
+      if (res.ok) {
+        const s = await res.json()
+        setPhotoVisible(s.photoVisible || { 1: true, 2: true, 3: true, 4: true })
+        setHeroImageVisible(s.heroImageVisible ?? true)
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    fetchSettings()
+  }, [fetchSettings])
+
+  // Toggle visibilité d'une photo vitrine (masquer/afficher sans supprimer)
+  const togglePhoto = async (slot: number) => {
+    const newValue = !(photoVisible[slot] ?? true)
+    setPhotoVisible((prev) => ({ ...prev, [slot]: newValue }))
+    try {
+      await fetch('/api/site-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photoVisible: { [slot]: newValue } }),
+      })
+      toast({ title: newValue ? `Photo ${slot} affichée` : `Photo ${slot} masquée` })
+    } catch {
+      setPhotoVisible((prev) => ({ ...prev, [slot]: !newValue }))
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de mettre à jour' })
+    }
+  }
+
+  // Toggle visibilité de l'image hero
+  const toggleHero = async () => {
+    const newValue = !heroImageVisible
+    setHeroImageVisible(newValue)
+    try {
+      await fetch('/api/site-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ heroImageVisible: newValue }),
+      })
+      toast({ title: newValue ? 'Image hero affichée' : 'Image hero masquée' })
+    } catch {
+      setHeroImageVisible(!newValue)
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de mettre à jour' })
+    }
+  }
 
   const handleUpload = async (slot: number, file: File) => {
     setUploading(slot)
@@ -3437,15 +3490,36 @@ function ModelPhotosSection() {
 
   return (
     <div className="mt-4 pt-4 border-t border-zinc-100">
+      {/* Image hero — toggle masquer/afficher sur le site */}
+      <div className="flex items-center justify-between mb-3 p-3 rounded-lg bg-zinc-50 border border-zinc-200">
+        <div>
+          <p className="text-xs font-medium text-zinc-700">Image hero (page d&apos;accueil)</p>
+          <p className="text-[10px] text-zinc-500">
+            {heroImageVisible ? 'Affichée sur le site' : 'Masquée sur le site'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium text-zinc-500">
+            {heroImageVisible ? 'Visible' : 'Masqué'}
+          </span>
+          <Switch checked={heroImageVisible} onCheckedChange={toggleHero} />
+        </div>
+      </div>
+
       <p className="text-xs text-zinc-500 mb-3 font-medium">Photos du site vitrine (4 emplacements) :</p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[1, 2, 3, 4].map((n) => (
           <div key={n} className="text-center">
-            <div className="aspect-video rounded-lg overflow-hidden border border-zinc-200 bg-zinc-100 mb-2 flex items-center justify-center">
-              {photos[n - 1] ? (
-                <img src={photos[n - 1]!} alt={`Photo ${n}`} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-xs text-zinc-400">Photo {n}</span>
+            <div className="relative">
+              <div className={`aspect-video rounded-lg overflow-hidden border bg-zinc-100 mb-2 flex items-center justify-center ${photoVisible[n] ?? true ? 'border-zinc-200' : 'border-zinc-300 border-dashed opacity-40'}`}>
+                {photos[n - 1] ? (
+                  <img src={photos[n - 1]!} alt={`Photo ${n}`} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-xs text-zinc-400">Photo {n}</span>
+                )}
+              </div>
+              {photos[n - 1] && !(photoVisible[n] ?? true) && (
+                <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-zinc-900 text-white text-[9px] font-bold">MASQUÉ</span>
               )}
             </div>
             <input
@@ -3462,7 +3536,7 @@ function ModelPhotosSection() {
             <Button
               size="sm"
               variant="outline"
-              className="w-full text-xs"
+              className="w-full text-xs mb-1"
               disabled={uploading === n}
               onClick={() => document.getElementById(`photo-upload-${n}`)?.click()}
             >
@@ -3471,11 +3545,22 @@ function ModelPhotosSection() {
               ) : null}
               {photos[n - 1] ? 'Remplacer' : 'Upload'}
             </Button>
+            {photos[n - 1] && (
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-[10px] text-zinc-500">
+                  {photoVisible[n] ?? true ? 'Visible' : 'Masqué'}
+                </span>
+                <Switch
+                  checked={photoVisible[n] ?? true}
+                  onCheckedChange={() => togglePhoto(n)}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
       <p className="text-[10px] text-zinc-400 text-center mt-2">
-        Ces photos s'affichent dans la section "Nos modèles" du site vitrine
+        Active/désactive chaque photo sur le site sans la supprimer
       </p>
     </div>
   )

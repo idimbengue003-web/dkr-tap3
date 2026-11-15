@@ -94,6 +94,15 @@ async function getCategories(): Promise<Category[]> {
 
 export default async function LandingPage() {
   const categories = await getCategories()
+  // Réglages de visibilité des photos (depuis l'admin) + photos vitrine (slots 1-4)
+  const [siteSettings, modelPhotos] = await Promise.all([
+    db.getSiteSettings().catch(() => ({ photoVisible: { 1: true, 2: true, 3: true, 4: true }, heroImageVisible: true })),
+    db.getAllModelPhotos().catch(() => [null, null, null, null] as (string | null)[]),
+  ])
+  // Photos visibles = uploadées ET non masquées par l'admin
+  const visiblePhotos = modelPhotos
+    .map((photo, i) => (photo && siteSettings.photoVisible[i + 1] ? i + 1 : null))
+    .filter((n): n is number => n !== null)
   return (
     <div className="min-h-screen flex flex-col bg-zinc-950 text-white">
       {/* ===== NAVBAR (avec menu hamburger + panier revendeur) ===== */}
@@ -165,16 +174,18 @@ export default async function LandingPage() {
             </a>
           </div>
 
-          {/* Image hero illustrative */}
-          <div className="mt-8 sm:mt-12 max-w-2xl mx-auto rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl shadow-emerald-500/10">
-            <img
-              src="/hero-scan.png"
-              alt="Smartphone scannant un sticker QR code DKR TAP"
-              className="w-full h-auto"
-              width={1024}
-              height={1024}
-            />
-          </div>
+          {/* Image hero illustrative — masquable depuis l'admin */}
+          {siteSettings.heroImageVisible && (
+            <div className="mt-8 sm:mt-12 max-w-2xl mx-auto rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl shadow-emerald-500/10">
+              <img
+                src="/hero-scan.png"
+                alt="Smartphone scannant un sticker QR code DKR TAP"
+                className="w-full h-auto"
+                width={1024}
+                height={1024}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-4 sm:gap-8 mt-10 sm:mt-16 max-w-2xl mx-auto">
             <div>
@@ -349,6 +360,25 @@ export default async function LandingPage() {
             </a>
           </div>
         </div>
+
+        {/* Galerie photos vitrine — photos uploadées + non masquées depuis l'admin */}
+        {visiblePhotos.length > 0 && (
+          <div className="mt-12">
+            <h3 className="text-center text-lg font-semibold text-zinc-300 mb-6">En images</h3>
+            <div className={`grid gap-4 ${visiblePhotos.length === 1 ? 'grid-cols-1 max-w-2xl mx-auto' : visiblePhotos.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}>
+              {visiblePhotos.map((slot) => (
+                <div key={slot} className="rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 aspect-video flex items-center justify-center">
+                  <img
+                    src={`/api/models/photos/${slot}`}
+                    alt={`Photo vitrine ${slot}`}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* ===== COMMENT ÇA MARCHE ===== */}
